@@ -1,0 +1,43 @@
+# dependencias y builds
+node_modules
+dist
+dist-ssr
+
+# entornos y credenciales
+.env
+.env.*
+!.env.example
+
+# archivos de sistema
+*.local
+.DS_Store
+Thumbs.db
+
+# editores
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# TypeScript incremental
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# temporales
+tmp/
+temp/
+
+# archivos locales de Claude / asistentes
+.claude/
+.claude-*
+CLAUDE.md
+CLAUDE.local.md
+
+# cobertura
+coverage/
+.vitest-cache/
