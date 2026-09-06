@@ -27,7 +27,7 @@ const initialState: AppState = {
   reviews: [],
 };
 
-type Action =
+export type Action =
   | { type: 'SET_PROFILE'; profile: Profile }
   | { type: 'RESET_ALL' }
   | { type: 'SAVE_CONTRACT'; contract: WeeklyContract }
@@ -35,7 +35,7 @@ type Action =
   | { type: 'NOTE'; date: string; weekKey: string; commitmentId: string; note: string }
   | { type: 'SAVE_REVIEW'; review: WeeklyReview };
 
-function reducer(state: AppState, action: Action): AppState {
+export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_PROFILE':
       return { ...state, profile: action.profile };
@@ -45,8 +45,20 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SAVE_CONTRACT': {
       // Sustituye contrato existente para el mismo weekKey, o añade uno nuevo.
+      // Al editar dentro de la misma semana se conservan las fechas originales
+      // (startDate, signedAt, createdAt): el periodo evaluable no cambia y el
+      // progreso ya registrado sigue contando.
+      const previous = state.contracts.find((c) => c.weekKey === action.contract.weekKey);
       const others = state.contracts.filter((c) => c.weekKey !== action.contract.weekKey);
-      return { ...state, contracts: [...others, action.contract] };
+      const contract: WeeklyContract = previous
+        ? {
+            ...action.contract,
+            startDate: previous.startDate,
+            signedAt: previous.signedAt,
+            createdAt: previous.createdAt,
+          }
+        : action.contract;
+      return { ...state, contracts: [...others, contract] };
     }
 
     case 'MARK': {

@@ -1,21 +1,17 @@
 import { useState } from 'react';
 import { Button } from '../components/Button';
 import { TextField, TextAreaField } from '../components/Field';
-import { useStore, uid } from '../state/store';
+import { useStore } from '../state/store';
 import { currentWeekKey, startOfISOWeek, toISODate, weekRangeLabel } from '../state/date';
-import type { Commitment } from '../types';
+import {
+  MAX_COMMITMENTS,
+  draftsToCommitments,
+  emptyDraft,
+  toDrafts,
+  type Draft,
+} from '../state/contractDraft';
 
 type Props = { onSaved: () => void };
-
-type Draft = Omit<Commitment, 'id'> & { id?: string };
-
-function emptyDraft(): Draft {
-  return { name: '', normal: '', minimum: '', reason: '' };
-}
-
-function toDrafts(list: Commitment[]): Draft[] {
-  return list.length === 0 ? [emptyDraft()] : list.map((c) => ({ ...c }));
-}
 
 export function Contract({ onSaved }: Props) {
   const { activeContract, saveContract } = useStore();
@@ -30,7 +26,7 @@ export function Contract({ onSaved }: Props) {
     setDrafts((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
   }
   function add() {
-    if (drafts.length >= 3) return;
+    if (drafts.length >= MAX_COMMITMENTS) return;
     setDrafts((prev) => [...prev, emptyDraft()]);
   }
   function remove(i: number) {
@@ -38,16 +34,7 @@ export function Contract({ onSaved }: Props) {
   }
 
   function submit() {
-    const cleaned: Commitment[] = drafts
-      .filter((d) => d.name.trim() && d.normal.trim() && d.minimum.trim())
-      .slice(0, 3)
-      .map((d) => ({
-        id: d.id ?? uid(),
-        name: d.name.trim(),
-        normal: d.normal.trim(),
-        minimum: d.minimum.trim(),
-        reason: d.reason.trim(),
-      }));
+    const cleaned = draftsToCommitments(drafts);
     if (cleaned.length === 0) return;
     saveContract(cleaned);
     onSaved();
@@ -127,9 +114,9 @@ export function Contract({ onSaved }: Props) {
           </fieldset>
         ))}
 
-        {drafts.length < 3 && (
+        {drafts.length < MAX_COMMITMENTS && (
           <button className="t-contract__add" onClick={add}>
-            + Añadir otro compromiso ({3 - drafts.length} restantes)
+            + Añadir otro compromiso ({MAX_COMMITMENTS - drafts.length} restantes)
           </button>
         )}
       </div>
