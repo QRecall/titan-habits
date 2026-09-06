@@ -139,3 +139,19 @@ describe('SAVE_CONTRACT · crear contrato de otra semana', () => {
     expect(next.contracts[next.contracts.length - 1].signedAt).toBe('2026-09-07');
   });
 });
+
+describe('RESTORE · sustituye todo el estado por la copia', () => {
+  it('reemplaza perfil, contratos, registros y revisiones', () => {
+    const state = baseState();
+    const restored: AppState = {
+      profile: { name: 'Otro', identity: 'otra identidad', onboardedAt: '2026-07-01T07:00:00.000Z' },
+      contracts: [{ ...original, weekKey: '2026-W30', startDate: '2026-07-20', signedAt: '2026-07-20' }],
+      days: [{ date: '2026-07-20', weekKey: '2026-W30', marks: [{ commitmentId: 'a', status: 'minimum' }] }],
+      reviews: [{ weekKey: '2026-W30', worked: 'w', hindered: 'h', changeNext: 'c', createdAt: 'x' }],
+    };
+    const next = reducer(state, { type: 'RESTORE', state: restored });
+    expect(next).toEqual(restored);
+    expect(next.contracts).toHaveLength(1);
+    expect(next.days).toHaveLength(1);
+  });
+});

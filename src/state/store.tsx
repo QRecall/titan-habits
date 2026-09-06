@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useState,
   type ReactNode,
 } from 'react';
 import type {
@@ -17,19 +18,14 @@ import type {
   WeeklyReview,
 } from '../types';
 import { currentWeekKey, startOfISOWeek, toISODate, today } from './date';
+import { defaultStorage, emptyState, readStoredState, writeStoredState } from './storage';
 
-const STORAGE_KEY = 'titan.v1';
-
-const initialState: AppState = {
-  profile: null,
-  contracts: [],
-  days: [],
-  reviews: [],
-};
+const initialState: AppState = emptyState;
 
 export type Action =
   | { type: 'SET_PROFILE'; profile: Profile }
   | { type: 'RESET_ALL' }
+  | { type: 'RESTORE'; state: AppState }
   | { type: 'SAVE_CONTRACT'; contract: WeeklyContract }
   | { type: 'MARK'; date: string; weekKey: string; commitmentId: string; status: CommitmentStatus }
   | { type: 'NOTE'; date: string; weekKey: string; commitmentId: string; note: string }
@@ -42,6 +38,15 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'RESET_ALL':
       return { ...initialState };
+
+    case 'RESTORE':
+      // Sustituye todo el estado por el de la copia (ya validada).
+      return {
+        profile: action.state.profile,
+        contracts: action.state.contracts,
+        days: action.state.days,
+        reviews: action.state.reviews,
+      };
 
     case 'SAVE_CONTRACT': {
       // Sustituye contrato existente para el mismo weekKey, o añade uno nuevo.
@@ -120,37 +125,6 @@ export function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-function load(): AppState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return initialState;
-    const parsed = JSON.parse(raw) as Partial<AppState>;
-    // Migración: si un contrato guardado no tiene signedAt, se le asigna
-    // la fecha local de hoy. Los registros de días previos se conservan
-    // en state.days aunque queden fuera del periodo evaluable.
-    const todayISO = today();
-    const contracts = (parsed.contracts ?? []).map((c) =>
-      c.signedAt ? c : { ...c, signedAt: todayISO }
-    );
-    return {
-      profile: parsed.profile ?? null,
-      contracts,
-      days: parsed.days ?? [],
-      reviews: parsed.reviews ?? [],
-    };
-  } catch {
-    return initialState;
-  }
-}
-
-function save(state: AppState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* localStorage puede estar lleno o desactivado; ignoramos silenciosamente */
-  }
-}
-
 export function uid(): string {
   return (
     Date.now().toString(36) +
@@ -170,6 +144,17 @@ export function newContractForCurrentWeek(commitments: Commitment[]): WeeklyCont
   };
 }
 
+export type StorageStatus = {
+  /** Explicación si lo guardado no se pudo leer al arrancar. */
+  loadError: string | null;
+  /** Clave donde se conservó, intacto, el contenido ilegible. */
+  preservedKey: string | null;
+  /** true si el último intento de guardar fue rechazado por el navegador. */
+  lastSaveFailed: boolean;
+  /** true mientras no se haya escrito nada desde el arranque. */
+  untouched: boolean;
+};
+
 type StoreValue = {
   state: AppState;
   setProfile: (p: Profile) => void;
@@ -178,6 +163,9 @@ type StoreValue = {
   setNote: (commitmentId: string, note: string, date?: string) => void;
   saveReview: (review: Omit<WeeklyReview, 'createdAt'>) => void;
   resetAll: () => void;
+  /** Sustituye todo el estado por una copia ya validada. */
+  restore: (next: AppState) => void;
+  storage: StorageStatus;
   activeContract: WeeklyContract | null;
   todayEntry: DayEntry | null;
 };
@@ -185,11 +173,17 @@ type StoreValue = {
 const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState, load);
+  const [loaded] = useState(() => readStoredState(defaultStorage()));
+  const [state, dispatch] = useReducer(reducer, loaded.state);
+  const [lastSaveFailed, setLastSaveFailed] = useState(false);
 
   useEffect(() => {
-    save(state);
-  }, [state]);
+    // Mientras el estado sea el recién cargado no se escribe nada: así un
+    // arranque con datos ilegibles nunca los sobrescribe con un estado vacío.
+    if (state === loaded.state) return;
+    const ok = writeStoredState(state, defaultStorage());
+    setLastSaveFailed(!ok);
+  }, [state, loaded.state]);
 
   const setProfile = useCallback((profile: Profile) => {
     dispatch({ type: 'SET_PROFILE', profile });
@@ -226,6 +220,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'RESET_ALL' });
   }, []);
 
+  const restore = useCallback((next: AppState) => {
+    dispatch({ type: 'RESTORE', state: next });
+  }, []);
+
   const value = useMemo<StoreValue>(() => {
     const activeContract =
       state.contracts.length > 0 ? state.contracts[state.contracts.length - 1] : null;
@@ -239,10 +237,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setNote,
       saveReview,
       resetAll,
+      restore,
+      storage: {
+        loadError: loaded.error,
+        preservedKey: loaded.preservedKey,
+        lastSaveFailed,
+        untouched: state === loaded.state,
+      },
       activeContract,
       todayEntry,
     };
-  }, [state, setProfile, saveContract, mark, setNote, saveReview, resetAll]);
+  }, [state, setProfile, saveContract, mark, setNote, saveReview, resetAll, restore, loaded, lastSaveFailed]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

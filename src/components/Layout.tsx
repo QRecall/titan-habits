@@ -24,6 +24,14 @@ export function Layout({ screen, onNavigate, children }: Props) {
           </span>
           <span className="t-brand__word">TITAN</span>
           <span className="t-brand__version">v0.1</span>
+          <button
+            type="button"
+            className={`t-topbar__data${screen === 'datos' ? ' is-active' : ''}`}
+            onClick={() => onNavigate('datos')}
+            aria-current={screen === 'datos' ? 'page' : undefined}
+          >
+            Mis datos
+          </button>
         </div>
       </header>
 
@@ -124,6 +132,15 @@ const css = `
   border: 1px solid var(--line-strong); border-radius: 999px;
   padding: 3px 8px;
 }
+
+.t-topbar__data {
+  min-height: 44px; padding: 0 10px; margin-right: -10px;
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600;
+  color: var(--fg-2); border-radius: 10px;
+  transition: color .2s, background .2s;
+}
+.t-topbar__data:hover { color: var(--fg-1); }
+.t-topbar__data.is-active { color: var(--gold); background: var(--gold-dim); }
 
 .t-main {
   padding: 8px 22px 22px;

@@ -51,4 +51,4 @@ export type AppState = {
   reviews: WeeklyReview[];
 };
 
-export type Screen = 'arranque' | 'progreso' | 'contrato' | 'revision';
+export type Screen = 'arranque' | 'progreso' | 'contrato' | 'revision' | 'datos';

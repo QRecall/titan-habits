@@ -15,6 +15,14 @@ tu progreso.
   guarda exclusivamente en el **`localStorage` del navegador**, bajo la clave
   `titan.v1`. Puedes borrarla en cualquier momento desde la consola del
   navegador: `localStorage.removeItem('titan.v1')`.
+- **Copias de seguridad.** En la sección **Mis datos** (botón de la cabecera)
+  puedes descargar un archivo JSON con todo (`titan-copia-AAAA-MM-DD.json`,
+  formato 1) y restaurarlo más tarde en cualquier navegador o dispositivo. La
+  restauración valida el archivo, muestra un resumen y pide confirmación antes
+  de reemplazar los datos actuales.
+- **Protección de lectura.** Si lo guardado no se puede leer al arrancar, no se
+  sobrescribe: se conserva intacto bajo una clave `titan.v1.ilegible-…` y la
+  app avisa en **Mis datos**, desde donde puede descargarse.
 
 ## Stack
 

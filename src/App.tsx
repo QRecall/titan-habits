@@ -5,6 +5,7 @@ import { Contract } from './screens/Contract';
 import { Arranque } from './screens/Arranque';
 import { Progress } from './screens/Progress';
 import { Review } from './screens/Review';
+import { MyData } from './screens/MyData';
 import { StoreProvider, useStore } from './state/store';
 import { currentWeekKey } from './state/date';
 import type { Screen } from './types';
@@ -15,8 +16,18 @@ function Shell() {
   const needsContract = !!state.profile && activeContract?.weekKey !== currentWeekKey();
   const [screen, setScreen] = useState<Screen>('arranque');
 
+  // "Mis datos" es accesible siempre: también sin perfil (para restaurar una
+  // copia tras perder los datos) y cuando toca firmar el contrato de la semana.
+  if (screen === 'datos') {
+    return (
+      <Layout screen="datos" onNavigate={setScreen}>
+        <MyData onNavigate={setScreen} />
+      </Layout>
+    );
+  }
+
   if (needsOnboarding) {
-    return <Onboarding />;
+    return <Onboarding onRestore={() => setScreen('datos')} />;
   }
 
   if (needsContract && screen !== 'contrato' && screen !== 'revision') {

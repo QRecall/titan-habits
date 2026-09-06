@@ -3,7 +3,9 @@ import { Button } from '../components/Button';
 import { TextField, TextAreaField } from '../components/Field';
 import { useStore, uid } from '../state/store';
 
-export function Onboarding() {
+type Props = { onRestore: () => void };
+
+export function Onboarding({ onRestore }: Props) {
   const { setProfile, saveContract } = useStore();
   const [name, setName] = useState('');
   const [identity, setIdentity] = useState('');
@@ -101,6 +103,9 @@ export function Onboarding() {
           <button type="button" className="t-onb__demo" onClick={loadDemo}>
             O cargar datos de ejemplo para explorar
           </button>
+          <button type="button" className="t-onb__demo" onClick={onRestore}>
+            ¿Ya usabas TITAN? Restaurar una copia de seguridad
+          </button>
         </div>
       </form>
 
@@ -155,8 +160,8 @@ const css = `
 }
 .t-onb__actions { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .t-onb__demo {
-  color: var(--fg-3); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
-  padding: 8px; transition: color .2s;
+  color: var(--fg-2); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 12px 8px; min-height: 44px; transition: color .2s;
 }
 .t-onb__demo:hover { color: var(--gold); }
 `;
