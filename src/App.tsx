@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Onboarding } from './screens/Onboarding';
 import { Contract } from './screens/Contract';
@@ -7,6 +7,8 @@ import { Progress } from './screens/Progress';
 import { Review } from './screens/Review';
 import { MyData } from './screens/MyData';
 import { StoreProvider, useStore } from './state/store';
+import { pendingToday } from './state/stats';
+import { updateAppBadge } from './pwa';
 import type { Screen } from './types';
 
 function Shell() {
@@ -14,6 +16,11 @@ function Shell() {
   const needsOnboarding = !state.profile;
   const needsContract = !!state.profile && !activeContract;
   const [screen, setScreen] = useState<Screen>('arranque');
+
+  // Número en el icono de la app instalada: compromisos pendientes hoy.
+  useEffect(() => {
+    updateAppBadge(pendingToday(state));
+  }, [state]);
 
   // "Mis datos" es accesible siempre: también sin perfil (para restaurar una
   // copia tras perder los datos) y cuando toca firmar el contrato de la semana.

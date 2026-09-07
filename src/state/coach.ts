@@ -1,6 +1,6 @@
 import type { AppState, WeeklyContract } from '../types';
 import { parseISODate, today, weekKey } from './date';
-import { computeStreak } from './stats';
+import { computeStreakAcross } from './stats';
 import { contractForWeek } from './contracts';
 
 type CoachTone = 'salida' | 'firme' | 'sostén' | 'reconducir' | 'racha';
@@ -38,7 +38,7 @@ export function coachMessage(state: AppState, todayISO: string = today()): Coach
     return { tone: 'salida', text: 'Antes de arrancar, firma tu contrato de la semana.' };
   }
   const s = statusOfToday(state, todayISO);
-  const streak = computeStreak(state, contract, todayISO);
+  const streak = computeStreakAcross(state, todayISO);
 
   if (s.total === 0) {
     return { tone: 'salida', text: 'Sin compromisos todavía. Añade uno y empieza pequeño.' };

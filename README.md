@@ -24,6 +24,27 @@ tu progreso.
   sobrescribe: se conserva intacto bajo una clave `titan.v1.ilegible-…` y la
   app avisa en **Mis datos**, desde donde puede descargarse.
 
+## En el móvil
+
+TITAN es una **app instalable** (PWA): desde **Mis datos** se explica cómo
+añadirla a la pantalla de inicio. Instalada se abre a pantalla completa,
+funciona sin conexión y el icono muestra cuántos compromisos quedan hoy.
+La pantalla de Arranque muestra la racha continua entre semanas y a Titán,
+la mascota, que cambia de cara según cómo va el día.
+
+No hay recordatorios automáticos: sin servidor no es posible enviar
+notificaciones cuando la app está cerrada. Una alarma del móvil a la hora
+de marcar es el sustituto honesto.
+
+## Semanas
+
+- Cada lunes el formulario de contrato viene relleno con el de la semana
+  anterior; se puede ajustar o empezar de cero.
+- Desde **Revisión** se puede preparar el contrato de la próxima semana sin
+  tocar el actual, y revisar tanto esta semana como la pasada.
+- La racha cuenta días consecutivos con todos los compromisos en normal o
+  mínimo, también a través del cambio de semana.
+
 ## Stack
 
 React · TypeScript · Vite · CSS moderno.

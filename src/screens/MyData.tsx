@@ -1,6 +1,7 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '../components/Button';
 import { useStore } from '../state/store';
+import { canPromptInstall, isIOS, isStandalone, onInstallChange, promptInstall } from '../pwa';
 import {
   backupFilename,
   createBackup,
@@ -144,6 +145,8 @@ export function MyData({ onNavigate }: Props) {
         </div>
       )}
 
+      <InstallPanel />
+
       <div className="t-data__panel">
         <p className="eyebrow">Descargar copia</p>
         <SummaryList summary={current} showExportedAt={false} />
@@ -228,6 +231,53 @@ export function MyData({ onNavigate }: Props) {
   );
 }
 
+function InstallPanel() {
+  const [, force] = useState(0);
+  useEffect(() => onInstallChange(() => force((n) => n + 1)), []);
+
+  if (isStandalone()) {
+    return (
+      <div className="t-data__panel">
+        <p className="eyebrow">Instalada en este dispositivo</p>
+        <p className="t-data__hint">
+          TITAN se abre desde su icono. Mientras queden compromisos sin marcar hoy, el icono
+          muestra cuántos faltan.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="t-data__panel">
+      <p className="eyebrow">Instalar en el móvil</p>
+      <p className="t-data__hint">
+        Instalada, TITAN se abre a pantalla completa desde un icono, funciona sin conexión y
+        muestra en el icono cuántos compromisos te quedan hoy.
+      </p>
+      {canPromptInstall() ? (
+        <Button full variant="ghost" onClick={() => void promptInstall()}>
+          Instalar TITAN
+        </Button>
+      ) : isIOS() ? (
+        <ol className="t-data__steps">
+          <li>Abre esta página en Safari.</li>
+          <li>Pulsa el botón Compartir (el cuadrado con la flecha).</li>
+          <li>Elige «Añadir a pantalla de inicio» y confirma.</li>
+        </ol>
+      ) : (
+        <ol className="t-data__steps">
+          <li>Abre el menú del navegador (⋮ o ⋯).</li>
+          <li>Elige «Instalar aplicación» o «Añadir a pantalla de inicio».</li>
+        </ol>
+      )}
+      <p className="t-data__hint">
+        Los datos de la app instalada y los del navegador pueden ser almacenes distintos. Si ya
+        tienes datos aquí, descarga una copia y restáurala desde la app instalada.
+      </p>
+    </div>
+  );
+}
+
 function SummaryList({
   summary,
   showExportedAt = true,
@@ -282,6 +332,7 @@ const css = `
   padding: 18px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius-l);
 }
 .t-data__hint { color: var(--fg-2); font-size: 13px; line-height: 1.5; }
+.t-data__steps { margin: 0; padding-left: 20px; color: var(--fg-1); font-size: 14px; line-height: 1.6; }
 
 .t-data__summary { display: grid; gap: 8px; margin: 0; }
 .t-data__summary > div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: baseline; }

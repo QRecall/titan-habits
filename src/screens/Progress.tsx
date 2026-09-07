@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useStore } from '../state/store';
 import { ProgressRing } from '../components/ProgressRing';
 import { Button } from '../components/Button';
-import { computeStreak, computeWeekStats } from '../state/stats';
+import { computeStreakAcross, computeWeekStats } from '../state/stats';
 import { daysInWeek, shortDayLabel, today } from '../state/date';
 import type { CommitmentStatus, Screen } from '../types';
 
@@ -15,7 +15,7 @@ export function Progress({ onNavigate }: Props) {
     if (!activeContract) return null;
     const todayISO = today();
     const stats = computeWeekStats(state, activeContract, todayISO);
-    const streak = computeStreak(state, activeContract, todayISO);
+    const streak = computeStreakAcross(state, todayISO);
     const weekDays = daysInWeek(activeContract.startDate);
     return { stats, streak, todayISO, weekDays };
   }, [state, activeContract]);

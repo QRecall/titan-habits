@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState, DayEntry, WeeklyContract } from '../types';
-import { computeStreak, computeWeekStats, evaluableDates } from './stats';
+import { computeStreak, computeStreakAcross, computeWeekStats, evaluableDates, pendingToday } from './stats';
 import { toISODate } from './date';
 
 function makeContract(signedAt: string, startDate = '2026-08-31'): WeeklyContract {
@@ -193,5 +193,97 @@ describe('computeStreak', () => {
       { date: '2026-09-03', weekKey: '2026-W36', marks: full },
     ]);
     expect(computeStreak(s, c, '2026-09-03')).toBe(1);
+  });
+});
+
+describe('computeStreakAcross · racha continua entre semanas', () => {
+  const full = ['a', 'b', 'c'].map((id) => ({ commitmentId: id, status: 'normal' as const }));
+  const w36 = makeContract('2026-08-31');
+  const w37: WeeklyContract = { ...makeContract('2026-09-07', '2026-09-07'), weekKey: '2026-W37' };
+
+  function withContracts(days: DayEntry[], contracts: WeeklyContract[]): AppState {
+    return { ...makeState(days), contracts };
+  }
+
+  it('el lunes con contrato nuevo y sin marcar, la racha de la semana pasada sigue viva', () => {
+    const s = withContracts(
+      ['2026-09-04', '2026-09-05', '2026-09-06'].map((date) => ({ date, weekKey: '2026-W36', marks: full })),
+      [w36, w37]
+    );
+    expect(computeStreakAcross(s, '2026-09-07')).toBe(3);
+  });
+
+  it('suma días de dos semanas consecutivas', () => {
+    const s = withContracts(
+      [
+        { date: '2026-09-05', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-06', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-07', weekKey: '2026-W37', marks: full },
+        { date: '2026-09-08', weekKey: '2026-W37', marks: full },
+      ],
+      [w36, w37]
+    );
+    expect(computeStreakAcross(s, '2026-09-08')).toBe(4);
+  });
+
+  it('un día sin contrato corta la racha (fin, no fallo)', () => {
+    // W35 sin contrato: el 30 de agosto no es evaluable.
+    const s = withContracts(
+      [
+        { date: '2026-08-30', weekKey: '2026-W35', marks: full },
+        { date: '2026-08-31', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-01', weekKey: '2026-W36', marks: full },
+      ],
+      [w36]
+    );
+    expect(computeStreakAcross(s, '2026-09-01')).toBe(2);
+  });
+
+  it('los días previos a signedAt de la primera semana no cuentan ni rompen', () => {
+    const late = makeContract('2026-09-03'); // firmado jueves
+    const s = withContracts(
+      [
+        { date: '2026-09-03', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-04', weekKey: '2026-W36', marks: full },
+      ],
+      [late]
+    );
+    expect(computeStreakAcross(s, '2026-09-04')).toBe(2);
+  });
+
+  it('un fallo ayer deja la racha en 0 aunque hoy esté completo', () => {
+    const s = withContracts(
+      [
+        { date: '2026-09-07', weekKey: '2026-W37', marks: [{ commitmentId: 'a', status: 'missed' }, ...full.slice(1)] },
+        { date: '2026-09-08', weekKey: '2026-W37', marks: full },
+      ],
+      [w36, w37]
+    );
+    expect(computeStreakAcross(s, '2026-09-08')).toBe(1);
+  });
+
+  it('sin contrato hoy la racha es 0', () => {
+    const s = withContracts(
+      [{ date: '2026-09-06', weekKey: '2026-W36', marks: full }],
+      [w36]
+    );
+    expect(computeStreakAcross(s, '2026-09-08')).toBe(0);
+  });
+});
+
+describe('pendingToday', () => {
+  it('cuenta los compromisos de hoy sin marcar', () => {
+    const c = makeContract('2026-08-31');
+    const s: AppState = {
+      ...makeState([{ date: '2026-09-02', weekKey: '2026-W36', marks: [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'missed' }] }]),
+      contracts: [c],
+    };
+    expect(pendingToday(s, '2026-09-02')).toBe(1);
+    expect(pendingToday(s, '2026-09-03')).toBe(3);
+  });
+
+  it('sin contrato para hoy devuelve 0', () => {
+    const s: AppState = { ...makeState([]), contracts: [makeContract('2026-08-31')] };
+    expect(pendingToday(s, '2026-09-08')).toBe(0);
   });
 });

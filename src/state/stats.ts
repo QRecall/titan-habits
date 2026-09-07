@@ -1,5 +1,6 @@
 import type { AppState, CommitmentStatus, WeeklyContract } from '../types';
-import { daysInWeek, parseISODate, toISODate, today } from './date';
+import { daysInWeek, parseISODate, toISODate, today, weekKey } from './date';
+import { contractForWeek } from './contracts';
 
 export type CommitmentSummary = {
   commitmentId: string;
@@ -161,4 +162,51 @@ function previousISODate(iso: string): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() - 1);
   return toISODate(d);
+}
+
+/**
+ * Racha continua entre semanas. Recorre hacia atrás desde hoy:
+ *  · cada día se evalúa con el contrato de SU semana;
+ *  · un día sin contrato, o anterior a la firma de su contrato, termina la
+ *    racha (no la rompe: simplemente no hay nada que contar antes);
+ *  · un `missed`, o un día pasado sin completar, rompe la racha;
+ *  · hoy sin completar (y sin missed) se salta.
+ */
+export function computeStreakAcross(state: AppState, todayISO: string = today()): number {
+  let cursor = todayISO;
+  let streak = 0;
+  let isFirst = true;
+
+  for (;;) {
+    const contract = contractForWeek(state.contracts, weekKey(parseISODate(cursor)));
+    if (!contract || contract.commitments.length === 0 || cursor < contract.signedAt) break;
+
+    let allDone = true;
+    let anyFailed = false;
+    for (const c of contract.commitments) {
+      const s = statusOn(state, cursor, c.id);
+      if (s === 'missed') {
+        anyFailed = true;
+        allDone = false;
+      } else if (s !== 'normal' && s !== 'minimum') {
+        allDone = false;
+      }
+    }
+
+    if (anyFailed) break;
+    if (allDone) streak++;
+    else if (!isFirst) break;
+
+    cursor = previousISODate(cursor);
+    isFirst = false;
+  }
+
+  return streak;
+}
+
+/** Compromisos de hoy todavía sin marcar (0 si no hay contrato esta semana). */
+export function pendingToday(state: AppState, todayISO: string = today()): number {
+  const contract = contractForWeek(state.contracts, weekKey(parseISODate(todayISO)));
+  if (!contract) return 0;
+  return contract.commitments.filter((c) => statusOn(state, todayISO, c.id) === null).length;
 }
