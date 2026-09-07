@@ -51,7 +51,7 @@ export function Arranque({ onNavigate }: Props) {
       </header>
 
       <div className={`t-hero t-hero--${mood}`}>
-        <Mascot mood={mood} level={flameLevel(streak)} size={96} />
+        <Mascot mood={mood} level={flameLevel(streak)} size={120} />
         <div className="t-hero__body">
           <div className="t-hero__row">
             <div className="t-hero__stat">
@@ -154,8 +154,9 @@ const css = `
 }
 .t-arranque__foot em { color: var(--minimum); font-style: italic; }
 
-@media (max-width: 380px) {
-  .t-hero { flex-direction: column; align-items: flex-start; }
+@media (max-width: 440px) {
+  .t-hero { flex-direction: column; align-items: center; text-align: center; }
+  .t-hero__row { justify-content: center; }
 }
 `;
 
