@@ -1,4 +1,6 @@
-/* Genera los iconos PNG de TITAN sin dependencias: la llama dorada sobre carbón.
+/* Genera los iconos PNG de TITAN sin dependencias: la llama tricolor
+ * (azul en la base, roja en el centro, amarilla en la punta) sobre carbón,
+ * con viñeta, sombra proyectada y brillo.
  * Uso: node scripts/make-icons.cjs   → escribe public/icons/*.png
  * Rasteriza a mano (curvas Bézier aplanadas, relleno par-impar, degradados
  * radiales y supermuestreo 3×3) para no depender de ningún paquete.
@@ -126,10 +128,16 @@ const INNER = 'M60 42c3 9 12 13 18 22 8 11 8 23 1 33-5 8-13 13-19 15-6-2-14-7-19
 const outer = flatten(OUTER), inner = flatten(INNER);
 const outerBox = bbox(outer), innerBox = bbox(inner);
 
-const OUTER_STOPS = [[0, hex('#FFE38F')], [0.55, hex('#F3C044')], [1, hex('#B86F12')]];
-const INNER_STOPS = [[0, hex('#FFFBE6')], [0.6, hex('#FFE9A6')], [1, hex('#F0C25A')]];
-const BG_TOP = hex('#1A1B21'), BG_BOTTOM = hex('#0B0B0D');
-const GLOW = hex('#EFC66A'), RIM = hex('#9A5E10'), WHITE = [255, 255, 255];
+// Degradados verticales (de abajo arriba): fuego tricolor y su interior claro.
+const OUTER_STOPS = [[0, hex('#FFE38F')], [0.2, hex('#F3C044')], [0.55, hex('#F1552E')], [1, hex('#2F7BFF')]];
+const INNER_STOPS = [[0, hex('#FFFBE6')], [0.5, hex('#FFD9B0')], [1, hex('#BFE3FF')]];
+const BG_CENTER = hex('#23242C'), BG_EDGE = hex('#08080A');
+const GLOW = hex('#EFC66A'), RIM = hex('#7A4A0E'), WHITE = [255, 255, 255], BLACK = [0, 0, 0];
+const BORDER = hex('#F5F1E8');
+// Degradado lineal vertical en la caja del objeto (0 = arriba, 1 = abajo).
+function vertical(box, stops, y) {
+  return ramp(stops, (y - box.y0) / box.h);
+}
 
 // Espacio del icono: 120×120. La llama va con translate(0,-2) scale(0.86) translate(10,10)
 // y, para maskable/apple, un encogido extra alrededor del centro (zona segura).
@@ -142,26 +150,53 @@ function sample(u, v, opts) {
     const cy = v < r ? r : v > 120 - r ? 120 - r : v;
     if ((u < r || u > 120 - r) && (v < r || v > 120 - r) && Math.hypot(u - cx, v - cy) > r) return null;
   }
-  let col = mix(BG_TOP, BG_BOTTOM, v / 120);
+  // fondo con viñeta: más claro arriba-centro, oscuro en los bordes
+  const vg = Math.hypot((u - 60) / 96, (v - 42) / 96);
+  let col = mix(BG_CENTER, BG_EDGE, Math.min(1, vg));
+  // filete interior sutil (1.5 px a 1 px del borde) sólo en iconos con esquinas
+  if (rounded) {
+    const r = 26;
+    const cx = u < 1 + r ? 1 + r : u > 119 - r ? 119 - r : u;
+    const cy = v < 1 + r ? 1 + r : v > 119 - r ? 119 - r : v;
+    const dEdge = Math.abs(Math.hypot(u - cx, v - cy) - r);
+    const straight = Math.min(Math.abs(u - 1), Math.abs(u - 119), Math.abs(v - 1), Math.abs(v - 119));
+    const corner = (u < 1 + r || u > 119 - r) && (v < 1 + r || v > 119 - r);
+    const dd = corner ? dEdge : straight;
+    if (dd < 0.75) col = over(col, BORDER, 0.08 * (1 - dd / 0.75));
+  }
 
   // deshacer transformaciones para muestrear la llama en su espacio (0..120)
   let x = u, y = v;
   if (pad) { x = (x - 60) / pad + 60; y = (y - 60) / pad + 60; }
-  x = x / 0.86 - 10; y = (y + 2) / 0.86 - 10;
+  x = x / 0.86 - 10; y = (y + 3) / 0.86 - 10;
 
-  // resplandor: elipse (60,70) rx 46 ry 48
-  const g = Math.hypot((x - 60) / 46, (y - 70) / 48);
-  if (g < 1) col = over(col, GLOW, 0.55 * (1 - g));
+  // resplandor: elipse (60,72) rx 50 ry 52
+  const g = Math.hypot((x - 60) / 50, (y - 72) / 52);
+  if (g < 1) col = over(col, GLOW, 0.5 * (1 - g));
+
+  // sombra proyectada: la silueta desplazada 4 hacia abajo, difuminada
+  if (!inside(outer, x, y)) {
+    const ds = distToPoly(outer, x, y - 4);
+    const insideShadow = inside(outer, x, y - 4);
+    const a = insideShadow ? 0.55 : Math.max(0, 0.55 * (1 - ds / 9));
+    if (a > 0) col = over(col, BLACK, a);
+  }
 
   if (inside(outer, x, y)) {
-    col = radial(outerBox, 0.45, 0.62, 0.6, OUTER_STOPS, x, y);
-    if (inside(inner, x, y)) col = radial(innerBox, 0.48, 0.7, 0.55, INNER_STOPS, x, y);
-    // núcleo: elipse (60,98) rx 13 ry 15, blanco al 70 %
+    col = vertical(outerBox, OUTER_STOPS, y);
+    if (inside(inner, x, y)) col = vertical(innerBox, INNER_STOPS, y);
+    // núcleo: elipse (60,98) rx 13 ry 15, blanco al 75 %
     const k = Math.hypot((x - 60) / 13, (y - 98) / 15);
-    if (k < 1) col = over(col, WHITE, 0.7 * (1 - k * k));
-    // borde oscuro (1.6 de ancho, 60 %)
+    if (k < 1) col = over(col, WHITE, 0.75 * (1 - k * k));
+    // brillo especular: trazo suave a la izquierda
+    const hx = 40 + ((y - 54) / 33) * 0 - 6 * Math.sin(((y - 54) / 33) * Math.PI); // curva ligera
+    if (y > 50 && y < 92) {
+      const dh = Math.abs(x - (hx + 2));
+      if (dh < 5) col = over(col, hex('#FFF6D6'), 0.55 * (1 - dh / 5) * Math.sin(((y - 50) / 42) * Math.PI));
+    }
+    // borde oscuro (1.8 de ancho, 50 %)
     const d = distToPoly(outer, x, y);
-    if (d < 0.8) col = over(col, RIM, 0.6 * (1 - d / 0.8));
+    if (d < 0.9) col = over(col, RIM, 0.5 * (1 - d / 0.9));
   }
   return col;
 }

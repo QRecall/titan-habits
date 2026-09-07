@@ -38,19 +38,22 @@ export function todayStatus(state: AppState, todayISO: string = today()): TodayS
 }
 
 /**
- * Color de la llama según lo hecho hoy, como un fuego que se calienta:
- *  · amarillo → nada hecho todavía
- *  · rojo     → a medias
- *  · azul     → todo hecho (normal o mínimo)
+ * Calor de la llama: proporción de lo hecho hoy (0..1), normal y mínimo
+ * por igual. El color se interpola de forma continua, como un fuego que
+ * se calienta: amarillo → naranja → rojo → azul.
  */
-export type Heat = 'amarillo' | 'rojo' | 'azul';
+export function heatRatio(s: TodayStatus): number {
+  if (s.total === 0) return 0;
+  return Math.max(0, Math.min(1, (s.normal + s.minimum) / s.total));
+}
 
-export function heatFor(s: TodayStatus): Heat {
-  if (s.total === 0) return 'amarillo';
-  const done = s.normal + s.minimum;
-  if (done === 0) return 'amarillo';
-  if (done < s.total) return 'rojo';
-  return 'azul';
+export type Heat = 'amarillo' | 'naranja' | 'rojo' | 'azul';
+
+/** Nombre del color para etiquetas accesibles. */
+export function heatFor(ratio: number): Heat {
+  if (ratio <= 0) return 'amarillo';
+  if (ratio >= 1) return 'azul';
+  return ratio < 0.5 ? 'naranja' : 'rojo';
 }
 
 /** Tamaño de la llama: 0 brasa · 1 pequeña · 2 media · 3 grande · 4 enorme. */

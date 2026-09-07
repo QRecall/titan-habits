@@ -1,30 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1A1B21"/>
-      <stop offset="1" stop-color="#0B0B0D"/>
+    <radialGradient id="bgv" cx="50%" cy="35%" r="80%">
+      <stop offset="0" stop-color="#23242C"/>
+      <stop offset="1" stop-color="#08080A"/>
+    </radialGradient>
+    <linearGradient id="fire3" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#2F7BFF"/>
+      <stop offset=".45" stop-color="#F1552E"/>
+      <stop offset=".8" stop-color="#F3C044"/>
+      <stop offset="1" stop-color="#FFE38F"/>
     </linearGradient>
-    <radialGradient id="fo" cx="45%" cy="62%" r="60%">
-      <stop offset="0" stop-color="#FFE38F"/>
-      <stop offset=".55" stop-color="#F3C044"/>
-      <stop offset="1" stop-color="#B86F12"/>
-    </radialGradient>
-    <radialGradient id="fi" cx="48%" cy="70%" r="55%">
-      <stop offset="0" stop-color="#FFFBE6"/>
-      <stop offset=".6" stop-color="#FFE9A6"/>
-      <stop offset="1" stop-color="#F0C25A"/>
-    </radialGradient>
+    <linearGradient id="fire3i" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#BFE3FF"/>
+      <stop offset=".5" stop-color="#FFD9B0"/>
+      <stop offset="1" stop-color="#FFFBE6"/>
+    </linearGradient>
     <radialGradient id="glow" cx="50%" cy="55%" r="50%">
-      <stop offset="0" stop-color="#EFC66A" stop-opacity=".55"/>
+      <stop offset="0" stop-color="#EFC66A" stop-opacity=".7"/>
       <stop offset="1" stop-color="#EFC66A" stop-opacity="0"/>
     </radialGradient>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity=".7"/>
+    </filter>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
   </defs>
-  <rect width="120" height="120" rx="27" fill="url(#g)"/>
-  <g transform="translate(0,-2) scale(0.86) translate(10,10)">
-    <ellipse cx="60" cy="70" rx="46" ry="48" fill="url(#glow)"/>
-    <path d="M60 10c5 15 20 21 29 36 11 17 11 35 1 51-8 15-21 24-30 27-9-3-22-12-30-27-10-16-10-34 1-51 9-15 24-21 29-36z" fill="url(#fo)"/>
-    <path d="M60 10c5 15 20 21 29 36 11 17 11 35 1 51-8 15-21 24-30 27-9-3-22-12-30-27-10-16-10-34 1-51 9-15 24-21 29-36z" fill="none" stroke="#9A5E10" stroke-opacity=".6" stroke-width="1.6"/>
-    <path d="M60 42c3 9 12 13 18 22 8 11 8 23 1 33-5 8-13 13-19 15-6-2-14-7-19-15-7-10-7-22 1-33 6-9 15-13 18-22z" fill="url(#fi)"/>
-    <ellipse cx="60" cy="98" rx="13" ry="15" fill="#fff" opacity=".7"/>
+  <rect width="120" height="120" rx="27" fill="url(#bgv)"/>
+  <rect x="1" y="1" width="118" height="118" rx="26" fill="none" stroke="rgba(245,241,232,0.08)" stroke-width="1.5"/>
+  <g transform="translate(0,-3) scale(0.86) translate(10,10)">
+    <ellipse cx="60" cy="72" rx="50" ry="52" fill="url(#glow)"/>
+    <g filter="url(#sh)">
+      <path d="M60 10c5 15 20 21 29 36 11 17 11 35 1 51-8 15-21 24-30 27-9-3-22-12-30-27-10-16-10-34 1-51 9-15 24-21 29-36z" fill="url(#fire3)"/>
+    </g>
+    <path d="M60 10c5 15 20 21 29 36 11 17 11 35 1 51-8 15-21 24-30 27-9-3-22-12-30-27-10-16-10-34 1-51 9-15 24-21 29-36z" fill="none" stroke="#7A4A0E" stroke-opacity=".5" stroke-width="1.8"/>
+    <path d="M60 42c3 9 12 13 18 22 8 11 8 23 1 33-5 8-13 13-19 15-6-2-14-7-19-15-7-10-7-22 1-33 6-9 15-13 18-22z" fill="url(#fire3i)"/>
+    <ellipse cx="60" cy="98" rx="13" ry="15" fill="#fff" opacity=".75"/>
+    <path d="M40 54c-6 10-7 22-4 33" stroke="#FFF6D6" stroke-opacity=".75" stroke-width="4" stroke-linecap="round" fill="none" filter="url(#soft)"/>
   </g>
 </svg>

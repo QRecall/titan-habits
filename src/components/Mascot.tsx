@@ -1,6 +1,12 @@
-import type { FlameLevel, Heat, Mood } from '../state/mood';
+import { heatFor, type FlameLevel, type Mood } from '../state/mood';
 
-type Props = { mood: Mood; level: FlameLevel; heat: Heat; size?: number };
+type Props = {
+  mood: Mood;
+  level: FlameLevel;
+  /** Proporción de lo hecho hoy (0..1): el color se interpola de forma continua. */
+  heat: number;
+  size?: number;
+};
 
 const LABEL: Record<Mood, string> = {
   espera: 'Titán, tu llama, espera la primera marca del día',
@@ -11,7 +17,7 @@ const LABEL: Record<Mood, string> = {
 };
 
 const LEVEL_LABEL = ['brasa', 'llama pequeña', 'llama media', 'llama grande', 'llama enorme'];
-const HEAT_LABEL: Record<Heat, string> = { amarillo: 'amarilla', rojo: 'roja', azul: 'azul' };
+const HEAT_LABEL = { amarillo: 'amarilla', naranja: 'naranja', rojo: 'roja', azul: 'azul' } as const;
 
 type Palette = {
   outer: [string, string, string];
@@ -26,8 +32,10 @@ type Palette = {
   cheek: string;
 };
 
-/* Como un fuego que se calienta: amarillo → rojo → azul. */
-const PALETTE: Record<Heat, Palette> = {
+/* Anclas de color. Entre ellas se interpola según el calor (0, 1/3, 2/3, 1):
+ * así con 3 compromisos cada marca cae justo en un ancla y nunca pasa por
+ * tonos morados entre el rojo y el azul. */
+const PALETTE: Record<'amarillo' | 'naranja' | 'rojo' | 'azul', Palette> = {
   amarillo: {
     outer: ['#FFE38F', '#F3C044', '#B86F12'],
     inner: ['#FFFBE6', '#FFE9A6', '#F0C25A'],
@@ -39,6 +47,18 @@ const PALETTE: Record<Heat, Palette> = {
     face: '#3A2210',
     glint: '#FFF6D6',
     cheek: '#E8875A',
+  },
+  naranja: {
+    outer: ['#FFC86E', '#F58A2A', '#A3450C'],
+    inner: ['#FFF1CF', '#FFD28C', '#F5A44C'],
+    core: '#FFF8E8',
+    glow: '#FF9A3A',
+    rim: '#8A3A0A',
+    arm: '#F59A3E',
+    armStroke: '#A3450C',
+    face: '#3A1A08',
+    glint: '#FFF2DD',
+    cheek: '#FFC29A',
   },
   rojo: {
     outer: ['#FFB067', '#F1552E', '#7E140C'],
@@ -66,6 +86,49 @@ const PALETTE: Record<Heat, Palette> = {
   },
 };
 
+function hexToRgb(h: string): [number, number, number] {
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+function mixHex(a: string, b: string, t: number): string {
+  const [r1, g1, b1] = hexToRgb(a);
+  const [r2, g2, b2] = hexToRgb(b);
+  const c = (x: number, y: number) => Math.round(x + (y - x) * t).toString(16).padStart(2, '0');
+  return `#${c(r1, r2)}${c(g1, g2)}${c(b1, b2)}`;
+}
+function mixPalette(a: Palette, b: Palette, t: number): Palette {
+  const m = (x: string, y: string) => mixHex(x, y, t);
+  return {
+    outer: [m(a.outer[0], b.outer[0]), m(a.outer[1], b.outer[1]), m(a.outer[2], b.outer[2])],
+    inner: [m(a.inner[0], b.inner[0]), m(a.inner[1], b.inner[1]), m(a.inner[2], b.inner[2])],
+    core: m(a.core, b.core),
+    glow: m(a.glow, b.glow),
+    rim: m(a.rim, b.rim),
+    arm: m(a.arm, b.arm),
+    armStroke: m(a.armStroke, b.armStroke),
+    face: m(a.face, b.face),
+    glint: m(a.glint, b.glint),
+    cheek: m(a.cheek, b.cheek),
+  };
+}
+/** Paleta continua: amarillo (0) → naranja (1/3) → rojo (2/3) → azul (1). */
+export function paletteFor(heat: number): Palette {
+  const h = Math.max(0, Math.min(1, heat));
+  const stops: [number, Palette][] = [
+    [0, PALETTE.amarillo],
+    [1 / 3, PALETTE.naranja],
+    [2 / 3, PALETTE.rojo],
+    [1, PALETTE.azul],
+  ];
+  for (let i = 1; i < stops.length; i++) {
+    if (h <= stops[i][0]) {
+      const [t0, a] = stops[i - 1];
+      const [t1, b] = stops[i];
+      return mixPalette(a, b, (h - t0) / (t1 - t0));
+    }
+  }
+  return PALETTE.azul;
+}
+
 const EMBER: Palette = {
   outer: ['#C98A3A', '#7A4A1E', '#4A2C12'],
   inner: ['#B07A3C', '#8A5528', '#6A3F1C'],
@@ -85,18 +148,23 @@ const EMBER: Palette = {
  * cambia de color según lo hecho hoy y de cara y postura según el día.
  */
 export function Mascot({ mood, level, heat, size = 120 }: Props) {
-  const scale = [0.55, 0.72, 0.86, 1, 1.12][level];
-  const ember = level === 0;
+  const scale = [0.62, 0.74, 0.86, 1, 1.12][level];
+  // Brasa apagada sólo si no hay racha Y no se ha hecho nada hoy: en cuanto
+  // marcas algo, la llama prende y coge color aunque la racha sea 0.
+  const ember = level === 0 && heat <= 0;
   const dim = mood === 'reconducir';
-  const p = ember ? EMBER : PALETTE[heat];
-  const id = ember ? 'brasa' : heat;
+  const heatName = heatFor(heat);
+  const p = ember ? EMBER : paletteFor(heat);
+  const id = ember ? 'brasa' : heatName;
+  // Cuanto más caliente, más brilla y más rápido parpadea.
+  const glowBoost = ember ? 0 : heat;
 
   return (
     <span
       className={`t-flame t-flame--${mood} t-flame--l${level} t-flame--${id}${ember ? ' is-ember' : ''}${dim ? ' is-dim' : ''}`}
       role="img"
-      aria-label={`${LABEL[mood]} · ${LEVEL_LABEL[level]}${ember ? '' : `, ${HEAT_LABEL[heat]}`}`}
-      style={{ width: size, height: size * 1.15 }}
+      aria-label={`${LABEL[mood]} · ${LEVEL_LABEL[level]}${ember ? '' : `, ${HEAT_LABEL[heatName]}`}`}
+      style={{ width: size, height: size * 1.15, ['--t-heat' as string]: String(glowBoost) }}
     >
       <svg viewBox="0 0 120 138" width={size} height={size * 1.15} aria-hidden="true">
         <defs>
@@ -234,11 +302,8 @@ const css = `
 .t-flame--reconducir .t-flame__arm--r { transform: rotate(25deg) translate(-6px, -4px); }
 
 /* resplandor y chispas por nivel (el azul brilla más: es el fuego más potente) */
-.t-flame__glow { opacity: 0.25; }
-.t-flame--l2 .t-flame__glow { opacity: 0.45; }
-.t-flame--l3 .t-flame__glow { opacity: 0.65; }
+.t-flame__glow { opacity: calc(0.25 + 0.65 * var(--t-heat, 0)); }
 .t-flame--l4 .t-flame__glow { opacity: 0.9; }
-.t-flame--azul .t-flame__glow { opacity: 0.9; }
 .t-flame__sparks { opacity: 0; }
 .t-flame--l3 .t-flame__sparks, .t-flame--l4 .t-flame__sparks, .t-flame--azul .t-flame__sparks { opacity: 1; }
 .is-dim .t-flame__outer, .is-dim .t-flame__inner, .is-dim .t-flame__core { filter: saturate(0.6) brightness(0.85); }
@@ -248,8 +313,8 @@ const css = `
 /* animaciones: parpadeo de llama, respiración y chispas */
 .t-flame__outer { animation: t-flicker 1.7s ease-in-out infinite; transform-origin: 60px 118px; }
 .t-flame__inner { animation: t-flicker 1.3s ease-in-out infinite reverse; transform-origin: 60px 110px; }
-.t-flame--azul .t-flame__outer { animation-duration: 1.1s; }
-.t-flame--azul .t-flame__inner { animation-duration: 0.9s; }
+.t-flame--rojo .t-flame__outer, .t-flame--azul .t-flame__outer { animation-duration: 1.2s; }
+.t-flame--rojo .t-flame__inner, .t-flame--azul .t-flame__inner { animation-duration: 0.95s; }
 .t-flame__all { animation: t-breathe 3.2s ease-in-out infinite; }
 .t-flame__spark { animation: t-spark 2.4s ease-out infinite; }
 .t-flame__spark:nth-child(2) { animation-delay: .6s; }

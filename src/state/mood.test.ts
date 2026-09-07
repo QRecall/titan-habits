@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState, WeeklyContract } from '../types';
-import { flameLevel, heatFor, moodFor, todayStatus } from './mood';
+import { flameLevel, heatFor, heatRatio, moodFor, todayStatus } from './mood';
 
 const A = { id: 'a', name: 'A', normal: 'n', minimum: 'm', reason: '' };
 const B = { id: 'b', name: 'B', normal: 'n', minimum: 'm', reason: '' };
@@ -47,22 +47,31 @@ describe('flameLevel · tamaño de la llama según la racha', () => {
   });
 });
 
-describe('heatFor · color de la llama según lo hecho hoy', () => {
+describe('heatRatio · proporción de lo hecho hoy', () => {
   const s = (normal: number, minimum: number, missed: number, total = 3) => ({
     total, normal, minimum, missed, pending: total - normal - minimum - missed,
   });
-  it('sin nada hecho → amarillo', () => expect(heatFor(s(0, 0, 0))).toBe('amarillo'));
-  it('sin contrato → amarillo', () => expect(heatFor(s(0, 0, 0, 0))).toBe('amarillo'));
-  it('a medias → rojo', () => {
-    expect(heatFor(s(1, 0, 0))).toBe('rojo');
-    expect(heatFor(s(1, 1, 0))).toBe('rojo');
+  it('sin contrato o sin nada hecho → 0', () => {
+    expect(heatRatio(s(0, 0, 0, 0))).toBe(0);
+    expect(heatRatio(s(0, 0, 0))).toBe(0);
   });
-  it('todo hecho, en normal o mínimo → azul', () => {
-    expect(heatFor(s(3, 0, 0))).toBe('azul');
-    expect(heatFor(s(2, 1, 0))).toBe('azul');
+  it('crece con cada compromiso hecho, normal o mínimo por igual', () => {
+    expect(heatRatio(s(1, 0, 0))).toBeCloseTo(1 / 3, 5);
+    expect(heatRatio(s(1, 1, 0))).toBeCloseTo(2 / 3, 5);
+    expect(heatRatio(s(2, 1, 0))).toBe(1);
   });
-  it('con un fallo: rojo si algo hecho, amarillo si nada', () => {
-    expect(heatFor(s(1, 0, 1))).toBe('rojo');
-    expect(heatFor(s(0, 0, 1))).toBe('amarillo');
+  it('un fallo no suma pero tampoco resta lo hecho', () => {
+    expect(heatRatio(s(1, 0, 1))).toBeCloseTo(1 / 3, 5);
+    expect(heatRatio(s(0, 0, 1))).toBe(0);
+  });
+});
+
+describe('heatFor · nombre del color según la proporción', () => {
+  it('0 → amarillo, hasta la mitad → naranja, desde la mitad → rojo, todo → azul', () => {
+    expect(heatFor(0)).toBe('amarillo');
+    expect(heatFor(0.34)).toBe('naranja');
+    expect(heatFor(0.5)).toBe('rojo');
+    expect(heatFor(0.99)).toBe('rojo');
+    expect(heatFor(1)).toBe('azul');
   });
 });
