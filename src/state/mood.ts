@@ -37,6 +37,22 @@ export function todayStatus(state: AppState, todayISO: string = today()): TodayS
   return { total, normal, minimum, missed, pending: total - normal - minimum - missed };
 }
 
+/**
+ * Color de la llama según lo hecho hoy, como un fuego que se calienta:
+ *  · amarillo → nada hecho todavía
+ *  · rojo     → a medias
+ *  · azul     → todo hecho (normal o mínimo)
+ */
+export type Heat = 'amarillo' | 'rojo' | 'azul';
+
+export function heatFor(s: TodayStatus): Heat {
+  if (s.total === 0) return 'amarillo';
+  const done = s.normal + s.minimum;
+  if (done === 0) return 'amarillo';
+  if (done < s.total) return 'rojo';
+  return 'azul';
+}
+
 /** Tamaño de la llama: 0 brasa · 1 pequeña · 2 media · 3 grande · 4 enorme. */
 export type FlameLevel = 0 | 1 | 2 | 3 | 4;
 

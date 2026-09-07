@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '../components/Button';
 import { useStore } from '../state/store';
-import { canPromptInstall, isIOS, isStandalone, onInstallChange, promptInstall } from '../pwa';
+import {
+  badgeStatus,
+  canPromptInstall,
+  enableBadge,
+  isIOS,
+  isStandalone,
+  onInstallChange,
+  promptInstall,
+  updateAppBadge,
+} from '../pwa';
+import { pendingToday } from '../state/stats';
 import { buildReminderICS, reminderFilename } from '../state/reminder';
 import {
   backupFilename,
@@ -282,10 +292,8 @@ function InstallPanel() {
     return (
       <div className="t-data__panel">
         <p className="eyebrow">Instalada en este dispositivo</p>
-        <p className="t-data__hint">
-          TITAN se abre desde su icono. Mientras queden compromisos sin marcar hoy, el icono
-          muestra cuántos faltan.
-        </p>
+        <p className="t-data__hint">TITAN se abre desde su icono.</p>
+        <BadgeControl />
       </div>
     );
   }
@@ -318,6 +326,53 @@ function InstallPanel() {
         tienes datos aquí, descarga una copia y restáurala desde la app instalada.
       </p>
     </div>
+  );
+}
+
+function BadgeControl() {
+  const { state } = useStore();
+  const [status, setStatus] = useState(badgeStatus);
+
+  async function enable() {
+    const next = await enableBadge();
+    setStatus(next);
+    if (next === 'ready') updateAppBadge(pendingToday(state));
+  }
+
+  if (status === 'unsupported') {
+    return (
+      <p className="t-data__hint">
+        Este navegador no muestra números sobre el icono. Chrome en Android no lo permite; en
+        iPhone funciona si la app se instaló desde Safari.
+      </p>
+    );
+  }
+  if (status === 'ready') {
+    return (
+      <p className="t-data__hint">
+        Número en el icono activo: mientras queden compromisos sin marcar hoy, el icono muestra
+        cuántos faltan. Se actualiza cada vez que abres la app.
+      </p>
+    );
+  }
+  if (status === 'denied') {
+    return (
+      <p className="t-data__hint">
+        El número en el icono necesita el permiso de notificaciones y está denegado. Actívalo en
+        Ajustes del iPhone, en la app TITAN, y vuelve aquí.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="t-data__hint">
+        En iPhone, el número sobre el icono necesita el permiso de notificaciones. No se envía
+        ningún aviso: sólo se usa para pintar el número.
+      </p>
+      <Button full variant="ghost" onClick={() => void enable()}>
+        Activar número en el icono
+      </Button>
+    </>
   );
 }
 

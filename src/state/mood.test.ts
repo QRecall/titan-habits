@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState, WeeklyContract } from '../types';
-import { flameLevel, moodFor, todayStatus } from './mood';
+import { flameLevel, heatFor, moodFor, todayStatus } from './mood';
 
 const A = { id: 'a', name: 'A', normal: 'n', minimum: 'm', reason: '' };
 const B = { id: 'b', name: 'B', normal: 'n', minimum: 'm', reason: '' };
@@ -44,5 +44,25 @@ describe('flameLevel · tamaño de la llama según la racha', () => {
     expect(flameLevel(13)).toBe(3);
     expect(flameLevel(14)).toBe(4);
     expect(flameLevel(90)).toBe(4);
+  });
+});
+
+describe('heatFor · color de la llama según lo hecho hoy', () => {
+  const s = (normal: number, minimum: number, missed: number, total = 3) => ({
+    total, normal, minimum, missed, pending: total - normal - minimum - missed,
+  });
+  it('sin nada hecho → amarillo', () => expect(heatFor(s(0, 0, 0))).toBe('amarillo'));
+  it('sin contrato → amarillo', () => expect(heatFor(s(0, 0, 0, 0))).toBe('amarillo'));
+  it('a medias → rojo', () => {
+    expect(heatFor(s(1, 0, 0))).toBe('rojo');
+    expect(heatFor(s(1, 1, 0))).toBe('rojo');
+  });
+  it('todo hecho, en normal o mínimo → azul', () => {
+    expect(heatFor(s(3, 0, 0))).toBe('azul');
+    expect(heatFor(s(2, 1, 0))).toBe('azul');
+  });
+  it('con un fallo: rojo si algo hecho, amarillo si nada', () => {
+    expect(heatFor(s(1, 0, 1))).toBe('rojo');
+    expect(heatFor(s(0, 0, 1))).toBe('amarillo');
   });
 });

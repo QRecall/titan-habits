@@ -68,6 +68,36 @@ export function isIOS(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
+export type BadgeStatus = 'unsupported' | 'needs-permission' | 'ready' | 'denied';
+
+/**
+ * Estado del número en el icono.
+ *  · Chrome en Android no lo soporta.
+ *  · En iPhone (app instalada desde Safari) exige permiso de notificaciones.
+ *  · En escritorio funciona sin más.
+ */
+export function badgeStatus(): BadgeStatus {
+  if (typeof navigator === 'undefined') return 'unsupported';
+  const nav = navigator as BadgeNavigator;
+  if (typeof nav.setAppBadge !== 'function') return 'unsupported';
+  if (!isIOS() || typeof Notification === 'undefined') return 'ready';
+  if (Notification.permission === 'granted') return 'ready';
+  if (Notification.permission === 'denied') return 'denied';
+  return 'needs-permission';
+}
+
+/** Pide el permiso que el iPhone exige para mostrar el número. */
+export async function enableBadge(): Promise<BadgeStatus> {
+  if (badgeStatus() === 'needs-permission') {
+    try {
+      await Notification.requestPermission();
+    } catch {
+      /* sin permiso: se refleja en badgeStatus() */
+    }
+  }
+  return badgeStatus();
+}
+
 /** Número en el icono: compromisos pendientes hoy. 0 lo quita. */
 export function updateAppBadge(count: number): void {
   if (typeof navigator === 'undefined') return;

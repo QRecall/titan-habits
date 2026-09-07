@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Mascot } from '../components/Mascot';
 import { coachMessage } from '../state/coach';
 import { computeStreakAcross, computeWeekStats } from '../state/stats';
-import { flameLevel, moodFor, todayStatus } from '../state/mood';
+import { flameLevel, heatFor, moodFor, todayStatus } from '../state/mood';
 import { fullDayLabel, longDate, saludoHora, today } from '../state/date';
 import type { Screen } from '../types';
 
@@ -51,7 +51,7 @@ export function Arranque({ onNavigate }: Props) {
       </header>
 
       <div className={`t-hero t-hero--${mood}`}>
-        <Mascot mood={mood} level={flameLevel(streak)} size={120} />
+        <Mascot mood={mood} level={flameLevel(streak)} heat={heatFor(status)} size={120} />
         <div className="t-hero__body">
           <div className="t-hero__row">
             <div className="t-hero__stat">

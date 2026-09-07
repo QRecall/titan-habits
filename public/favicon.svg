@@ -1,5 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0B0B0D"/>
-  <path d="M14 22h36" stroke="#D4A64A" stroke-width="3" stroke-linecap="square"/>
-  <text x="32" y="46" text-anchor="middle" font-family="Georgia, serif" font-size="26" font-weight="600" fill="#F5F1E8" letter-spacing="1">T</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1A1B21"/>
+      <stop offset="1" stop-color="#0B0B0D"/>
+    </linearGradient>
+    <radialGradient id="fo" cx="45%" cy="62%" r="60%">
+      <stop offset="0" stop-color="#FFE38F"/>
+      <stop offset=".55" stop-color="#F3C044"/>
+      <stop offset="1" stop-color="#B86F12"/>
+    </radialGradient>
+    <radialGradient id="fi" cx="48%" cy="70%" r="55%">
+      <stop offset="0" stop-color="#FFFBE6"/>
+      <stop offset=".6" stop-color="#FFE9A6"/>
+      <stop offset="1" stop-color="#F0C25A"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="55%" r="50%">
+      <stop offset="0" stop-color="#EFC66A" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#EFC66A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="120" height="120" rx="27" fill="url(#g)"/>
+  <g transform="translate(0,-2) scale(0.86) translate(10,10)">
+    <ellipse cx="60" cy="70" rx="46" ry="48" fill="url(#glow)"/>
+    <path d="M60 10c5 15 20 21 29 36 11 17 11 35 1 51-8 15-21 24-30 27-9-3-22-12-30-27-10-16-10-34 1-51 9-15 24-21 29-36z" fill="url(#fo)"/>
+    <path d="M60 10c5 15 20 21 29 36 11 17 11 35 1 51-8 15-21 24-30 27-9-3-22-12-30-27-10-16-10-34 1-51 9-15 24-21 29-36z" fill="none" stroke="#9A5E10" stroke-opacity=".6" stroke-width="1.6"/>
+    <path d="M60 42c3 9 12 13 18 22 8 11 8 23 1 33-5 8-13 13-19 15-6-2-14-7-19-15-7-10-7-22 1-33 6-9 15-13 18-22z" fill="url(#fi)"/>
+    <ellipse cx="60" cy="98" rx="13" ry="15" fill="#fff" opacity=".7"/>
+  </g>
 </svg>

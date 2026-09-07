@@ -6,7 +6,7 @@
  *  · Nunca toca peticiones a otros dominios (fuentes de Google, etc.).
  * Sin precarga de nombres con hash: se cachea lo que se va pidiendo.
  */
-const VERSION = 'titan-sw-v1';
+const VERSION = 'titan-sw-v2';
 const SHELL = [new URL('./', self.location).pathname];
 
 self.addEventListener('install', (event) => {
