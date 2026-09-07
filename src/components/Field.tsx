@@ -46,7 +46,7 @@ const css = `
   border-radius: 12px;
   padding: 14px 14px;
   color: var(--fg-1);
-  font-size: 15px;
+  font-size: 16px; /* < 16px hace zoom en iOS al tocar el campo */
   transition: border-color .2s var(--ease-out), background .2s;
   font-family: var(--font-body);
   width: 100%;

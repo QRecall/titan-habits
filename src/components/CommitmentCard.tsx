@@ -195,14 +195,15 @@ const css = `
 
 .t-note { border-top: 1px solid var(--line); padding-top: 12px; }
 .t-note__toggle {
-  color: var(--fg-3); font-size: 12px; font-weight: 600; letter-spacing: 0.1em;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; margin: -8px 0;
+  color: var(--fg-2); font-size: 12px; font-weight: 600; letter-spacing: 0.1em;
   transition: color .2s;
 }
 .t-note__toggle:hover { color: var(--gold); }
 .t-note__wrap { display: flex; flex-direction: column; gap: 6px; }
 .t-note__input {
   background: transparent; border: none; border-bottom: 1px solid var(--line-strong);
-  color: var(--fg-1); padding: 6px 0; resize: vertical; font-family: var(--font-body); font-size: 14px;
+  color: var(--fg-1); padding: 6px 0; resize: vertical; font-family: var(--font-body); font-size: 16px;
   min-height: 36px;
 }
 .t-note__input:focus { outline: none; border-bottom-color: var(--gold); }

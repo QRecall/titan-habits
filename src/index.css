@@ -12,7 +12,7 @@
 
   --fg-1: #F5F1E8;
   --fg-2: #A9A69C;
-  --fg-3: #6C6A63;
+  --fg-3: #86847B; /* contraste >= 4.5:1 sobre los tres fondos */
 
   --gold: #D4A64A;
   --gold-bright: #EFC66A;

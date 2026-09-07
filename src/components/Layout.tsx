@@ -97,7 +97,8 @@ const css = `
   display: flex; flex-direction: column;
   max-width: 620px;
   margin: 0 auto;
-  padding-bottom: 96px;
+  /* barra inferior (~72px) + zona segura del iPhone + margen */
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
 }
 
 .t-topbar {
