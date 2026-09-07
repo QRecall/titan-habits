@@ -332,11 +332,16 @@ function InstallPanel() {
 function BadgeControl() {
   const { state } = useStore();
   const [status, setStatus] = useState(badgeStatus);
+  const [result, setResult] = useState<string | null>(null);
+  const pending = pendingToday(state);
 
   async function enable() {
     const next = await enableBadge();
     setStatus(next);
-    if (next === 'ready') updateAppBadge(pendingToday(state));
+    if (next === 'ready') setResult(await updateAppBadge(pending));
+  }
+  async function test(n: number) {
+    setResult(await updateAppBadge(n));
   }
 
   if (status === 'unsupported') {
@@ -349,10 +354,27 @@ function BadgeControl() {
   }
   if (status === 'ready') {
     return (
-      <p className="t-data__hint">
-        Número en el icono activo: mientras queden compromisos sin marcar hoy, el icono muestra
-        cuántos faltan. Se actualiza cada vez que abres la app.
-      </p>
+      <>
+        <p className="t-data__hint">
+          Número en el icono activo: mientras queden compromisos sin marcar hoy, el icono muestra
+          cuántos faltan. Se actualiza cada vez que abres la app. Ahora mismo: {pending}{' '}
+          {pending === 1 ? 'pendiente' : 'pendientes'}
+          {pending === 0 && ', así que no se muestra ningún número'}.
+        </p>
+        <div className="t-data__actions">
+          <Button full variant="ghost" onClick={() => void test(3)}>
+            Probar: poner un 3 en el icono
+          </Button>
+          <Button full variant="quiet" onClick={() => void test(pending)}>
+            Volver a los pendientes de hoy
+          </Button>
+        </div>
+        {result && (
+          <p className="t-data__hint" role="status">
+            Respuesta del sistema: {result}. Vuelve a la pantalla de inicio para comprobarlo.
+          </p>
+        )}
+      </>
     );
   }
   if (status === 'denied') {

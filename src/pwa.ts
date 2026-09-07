@@ -98,11 +98,26 @@ export async function enableBadge(): Promise<BadgeStatus> {
   return badgeStatus();
 }
 
+/** Resultado de la última operación sobre el número del icono (diagnóstico). */
+export let lastBadgeResult = 'sin intentar';
+
 /** Número en el icono: compromisos pendientes hoy. 0 lo quita. */
-export function updateAppBadge(count: number): void {
-  if (typeof navigator === 'undefined') return;
+export function updateAppBadge(count: number): Promise<string> {
+  if (typeof navigator === 'undefined') return Promise.resolve('sin navegador');
   const nav = navigator as BadgeNavigator;
-  if (typeof nav.setAppBadge !== 'function') return;
+  if (typeof nav.setAppBadge !== 'function') {
+    lastBadgeResult = 'no soportado';
+    return Promise.resolve(lastBadgeResult);
+  }
   const p = count > 0 ? nav.setAppBadge(count) : (nav.clearAppBadge?.() ?? nav.setAppBadge(0));
-  p.catch(() => undefined);
+  return p
+    .then(() => {
+      lastBadgeResult = count > 0 ? `puesto a ${count}` : 'quitado';
+      return lastBadgeResult;
+    })
+    .catch((e: unknown) => {
+      const err = e as { name?: string; message?: string };
+      lastBadgeResult = `error: ${err?.name ?? ''} ${err?.message ?? String(e)}`.trim();
+      return lastBadgeResult;
+    });
 }
