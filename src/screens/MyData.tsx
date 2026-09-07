@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Button } from '../components/Button';
 import { useStore } from '../state/store';
 import { canPromptInstall, isIOS, isStandalone, onInstallChange, promptInstall } from '../pwa';
+import { buildReminderICS, reminderFilename } from '../state/reminder';
 import {
   backupFilename,
   createBackup,
@@ -147,6 +148,8 @@ export function MyData({ onNavigate }: Props) {
 
       <InstallPanel />
 
+      <ReminderPanel onNotice={setNotice} />
+
       <div className="t-data__panel">
         <p className="eyebrow">Descargar copia</p>
         <SummaryList summary={current} showExportedAt={false} />
@@ -228,6 +231,46 @@ export function MyData({ onNavigate }: Props) {
 
       <style>{css}</style>
     </section>
+  );
+}
+
+function ReminderPanel({ onNotice }: { onNotice: (n: string) => void }) {
+  const [time, setTime] = useState('21:00');
+
+  function download() {
+    const [h, m] = time.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return;
+    downloadText(reminderFilename(h, m), buildReminderICS({ hour: h, minute: m }), 'text/calendar');
+    onNotice('Recordatorio descargado. Ábrelo y acepta añadirlo a tu calendario.');
+  }
+
+  return (
+    <div className="t-data__panel">
+      <p className="eyebrow">Recordatorio diario</p>
+      <p className="t-data__hint">
+        TITAN no puede avisarte con la app cerrada: no tiene servidor. Tu calendario sí puede.
+        Elige una hora y descarga un recordatorio que se repite cada día; al abrirlo, el móvil te
+        propondrá añadirlo.
+      </p>
+      <div className="t-data__time">
+        <label htmlFor="reminder-time" className="t-field__label">Hora del aviso</label>
+        <input
+          id="reminder-time"
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="t-data__time-input"
+          required
+        />
+      </div>
+      <Button full variant="ghost" onClick={download} disabled={!time}>
+        Descargar recordatorio de calendario
+      </Button>
+      <p className="t-data__hint">
+        Para cambiar la hora, borra el evento «TITAN · marca tus compromisos» del calendario y
+        descarga otro.
+      </p>
+    </div>
   );
 }
 
@@ -333,6 +376,14 @@ const css = `
 }
 .t-data__hint { color: var(--fg-2); font-size: 13px; line-height: 1.5; }
 .t-data__steps { margin: 0; padding-left: 20px; color: var(--fg-1); font-size: 14px; line-height: 1.6; }
+.t-data__time { display: flex; flex-direction: column; gap: 6px; }
+.t-field__label { font-size: 11px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--fg-2); }
+.t-data__time-input {
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; color: var(--fg-1); font-size: 16px; font-family: var(--font-body);
+  color-scheme: dark; min-height: 44px; width: 100%; max-width: 200px;
+}
+.t-data__time-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px var(--gold-dim); }
 
 .t-data__summary { display: grid; gap: 8px; margin: 0; }
 .t-data__summary > div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: baseline; }

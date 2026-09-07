@@ -37,6 +37,17 @@ export function todayStatus(state: AppState, todayISO: string = today()): TodayS
   return { total, normal, minimum, missed, pending: total - normal - minimum - missed };
 }
 
+/** Tamaño de la llama: 0 brasa · 1 pequeña · 2 media · 3 grande · 4 enorme. */
+export type FlameLevel = 0 | 1 | 2 | 3 | 4;
+
+export function flameLevel(streak: number): FlameLevel {
+  if (streak <= 0) return 0;
+  if (streak < 3) return 1;
+  if (streak < 7) return 2;
+  if (streak < 14) return 3;
+  return 4;
+}
+
 export function moodFor(s: TodayStatus): Mood {
   if (s.total === 0) return 'espera';
   if (s.missed > 0) return 'reconducir';
