@@ -103,7 +103,9 @@ const css = `
 
 .t-topbar {
   position: sticky; top: 0; z-index: 5;
-  padding: 18px 22px 14px;
+  /* En la app instalada en iPhone el contenido pasa bajo la barra de estado
+     (hora, wifi): se reserva esa franja para que la cabecera se pueda pulsar. */
+  padding: calc(18px + env(safe-area-inset-top, 0px)) 22px 14px;
   background: linear-gradient(180deg, var(--bg-0) 70%, transparent);
   backdrop-filter: blur(4px);
 }
@@ -144,7 +146,7 @@ const css = `
 .t-topbar__data.is-active { color: var(--gold); background: var(--gold-dim); }
 
 .t-main {
-  padding: 8px 22px 22px;
+  padding: 8px max(22px, env(safe-area-inset-right, 0px)) 22px max(22px, env(safe-area-inset-left, 0px));
   flex: 1;
   animation: fade .3s var(--ease-out) both;
 }
@@ -177,7 +179,7 @@ const css = `
 }
 
 @media (min-width: 640px) {
-  .t-topbar { padding-top: 32px; }
+  .t-topbar { padding-top: calc(32px + env(safe-area-inset-top, 0px)); }
   .t-main { padding: 16px 32px 40px; }
 }
 `;

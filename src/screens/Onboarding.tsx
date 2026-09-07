@@ -118,7 +118,7 @@ const css = `
 .t-onb {
   min-height: 100dvh;
   display: flex; flex-direction: column; align-items: center;
-  padding: 40px 22px 60px;
+  padding: calc(40px + env(safe-area-inset-top, 0px)) 22px calc(60px + env(safe-area-inset-bottom, 0px));
   max-width: 560px; margin: 0 auto;
   animation: fade .5s var(--ease-out);
   position: relative; z-index: 1;
