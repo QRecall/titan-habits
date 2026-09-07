@@ -7,13 +7,12 @@ import { Progress } from './screens/Progress';
 import { Review } from './screens/Review';
 import { MyData } from './screens/MyData';
 import { StoreProvider, useStore } from './state/store';
-import { currentWeekKey } from './state/date';
 import type { Screen } from './types';
 
 function Shell() {
   const { state, activeContract } = useStore();
   const needsOnboarding = !state.profile;
-  const needsContract = !!state.profile && activeContract?.weekKey !== currentWeekKey();
+  const needsContract = !!state.profile && !activeContract;
   const [screen, setScreen] = useState<Screen>('arranque');
 
   // "Mis datos" es accesible siempre: también sin perfil (para restaurar una
@@ -31,6 +30,8 @@ function Shell() {
   }
 
   if (needsContract && screen !== 'contrato' && screen !== 'revision') {
+    // Sin contrato esta semana no tiene sentido preparar la siguiente:
+    // se firma primero la actual (con el formulario prellenado).
     return (
       <Layout screen="contrato" onNavigate={setScreen}>
         <Contract onSaved={() => setScreen('arranque')} />
@@ -39,10 +40,13 @@ function Shell() {
   }
 
   return (
-    <Layout screen={screen} onNavigate={setScreen}>
+    <Layout screen={screen === 'contrato-proxima' ? 'contrato' : screen} onNavigate={setScreen}>
       {screen === 'arranque' && <Arranque onNavigate={setScreen} />}
       {screen === 'progreso' && <Progress onNavigate={setScreen} />}
       {screen === 'contrato' && <Contract onSaved={() => setScreen('arranque')} />}
+      {screen === 'contrato-proxima' && (
+        <Contract target="next" onSaved={() => setScreen('revision')} />
+      )}
       {screen === 'revision' && <Review onNavigate={setScreen} />}
     </Layout>
   );

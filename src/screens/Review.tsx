@@ -4,34 +4,24 @@ import { Button } from '../components/Button';
 import { TextAreaField } from '../components/Field';
 import { weekRangeLabel } from '../state/date';
 import { computeWeekStats } from '../state/stats';
-import type { Screen } from '../types';
+import type { Screen, WeeklyContract } from '../types';
 
 type Props = { onNavigate: (s: Screen) => void };
 
+type Option = { key: string; label: string; contract: WeeklyContract };
+
 export function Review({ onNavigate }: Props) {
-  const { state, activeContract, saveReview } = useStore();
+  const { activeContract, previousContract, nextContract } = useStore();
 
-  const contract = activeContract;
-  const existing = useMemo(
-    () => (contract ? state.reviews.find((r) => r.weekKey === contract.weekKey) : undefined),
-    [state.reviews, contract]
-  );
+  // Semanas revisables: la actual (si ya está firmada) y la anterior.
+  const options: Option[] = [];
+  if (activeContract) options.push({ key: 'current', label: 'Esta semana', contract: activeContract });
+  if (previousContract) options.push({ key: 'previous', label: 'Semana pasada', contract: previousContract });
 
-  const [worked, setWorked] = useState(existing?.worked ?? '');
-  const [hindered, setHindered] = useState(existing?.hindered ?? '');
-  const [changeNext, setChangeNext] = useState(existing?.changeNext ?? '');
-  const [saved, setSaved] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string>(options[0]?.key ?? 'current');
+  const selected = options.find((o) => o.key === selectedKey) ?? options[0] ?? null;
 
-  const summary = useMemo(() => {
-    if (!contract) return null;
-    const stats = computeWeekStats(state, contract);
-    return contract.commitments.map((c) => {
-      const per = stats.perCommitment.find((p) => p.commitmentId === c.id)!;
-      return { c, normal: per.normal, minimum: per.minimum, missed: per.missed, blank: per.unmarked };
-    });
-  }, [contract, state]);
-
-  if (!contract) {
+  if (!selected) {
     return (
       <div className="t-empty">
         <p className="eyebrow eyebrow--gold">Sin contrato</p>
@@ -42,8 +32,75 @@ export function Review({ onNavigate }: Props) {
     );
   }
 
+  return (
+    <section className="t-review">
+      <header className="t-review__head">
+        <p className="eyebrow eyebrow--gold">Revisión semanal</p>
+        <h1 className="display t-review__title">Mirar antes de firmar la siguiente.</h1>
+        <p className="t-review__range">{weekRangeLabel(selected.contract.startDate)}</p>
+      </header>
+
+      {options.length > 1 && (
+        <div className="t-review__weeks" role="tablist" aria-label="Semana a revisar">
+          {options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              role="tab"
+              aria-selected={o.key === selected.key}
+              className={`t-review__week${o.key === selected.key ? ' is-active' : ''}`}
+              onClick={() => setSelectedKey(o.key)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ReviewForm key={selected.contract.weekKey} contract={selected.contract} />
+
+      <div className="t-review__actions">
+        {activeContract ? (
+          <Button full variant="ghost" onClick={() => onNavigate('contrato-proxima')}>
+            {nextContract ? 'Ajustar la próxima semana' : 'Preparar el contrato de la próxima semana'}
+          </Button>
+        ) : (
+          <Button full variant="ghost" onClick={() => onNavigate('contrato')}>
+            Firmar el contrato de esta semana
+          </Button>
+        )}
+      </div>
+
+      <p className="t-review__foot">
+        No hay veredicto ni castigo. Solo información para firmar mejor la próxima semana.
+      </p>
+
+      <style>{css}</style>
+    </section>
+  );
+}
+
+function ReviewForm({ contract }: { contract: WeeklyContract }) {
+  const { state, saveReview } = useStore();
+  const existing = useMemo(
+    () => state.reviews.find((r) => r.weekKey === contract.weekKey),
+    [state.reviews, contract.weekKey]
+  );
+
+  const [worked, setWorked] = useState(existing?.worked ?? '');
+  const [hindered, setHindered] = useState(existing?.hindered ?? '');
+  const [changeNext, setChangeNext] = useState(existing?.changeNext ?? '');
+  const [saved, setSaved] = useState(false);
+
+  const summary = useMemo(() => {
+    const stats = computeWeekStats(state, contract);
+    return contract.commitments.map((c) => {
+      const per = stats.perCommitment.find((p) => p.commitmentId === c.id)!;
+      return { c, normal: per.normal, minimum: per.minimum, missed: per.missed, blank: per.unmarked };
+    });
+  }, [contract, state]);
+
   function submit() {
-    if (!contract) return;
     saveReview({
       weekKey: contract.weekKey,
       worked: worked.trim(),
@@ -56,31 +113,23 @@ export function Review({ onNavigate }: Props) {
   const canSave = worked.trim() || hindered.trim() || changeNext.trim();
 
   return (
-    <section className="t-review">
-      <header className="t-review__head">
-        <p className="eyebrow eyebrow--gold">Revisión semanal</p>
-        <h1 className="display t-review__title">Mirar antes de firmar la siguiente.</h1>
-        <p className="t-review__range">{weekRangeLabel(contract.startDate)}</p>
-      </header>
-
-      {summary && (
-        <div className="t-review__summary">
-          <p className="eyebrow">Compromisos cumplidos</p>
-          <ul className="t-review__list">
-            {summary.map(({ c, normal, minimum, missed, blank }) => (
-              <li key={c.id} className="t-review__item">
-                <div className="t-review__name">{c.name}</div>
-                <div className="t-review__stats">
-                  <span className="t-review__stat t-review__stat--normal">{normal} <em>normal</em></span>
-                  <span className="t-review__stat t-review__stat--min">{minimum} <em>mínimo</em></span>
-                  <span className="t-review__stat t-review__stat--miss">{missed} <em>fallado</em></span>
-                  {blank > 0 && <span className="t-review__stat t-review__stat--blank">{blank} <em>sin marcar</em></span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+    <>
+      <div className="t-review__summary">
+        <p className="eyebrow">Compromisos cumplidos</p>
+        <ul className="t-review__list">
+          {summary.map(({ c, normal, minimum, missed, blank }) => (
+            <li key={c.id} className="t-review__item">
+              <div className="t-review__name">{c.name}</div>
+              <div className="t-review__stats">
+                <span className="t-review__stat t-review__stat--normal">{normal} <em>normal</em></span>
+                <span className="t-review__stat t-review__stat--min">{minimum} <em>mínimo</em></span>
+                <span className="t-review__stat t-review__stat--miss">{missed} <em>fallado</em></span>
+                {blank > 0 && <span className="t-review__stat t-review__stat--blank">{blank} <em>sin marcar</em></span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <div className="t-review__form">
         <TextAreaField
@@ -111,20 +160,11 @@ export function Review({ onNavigate }: Props) {
 
       <div className="t-review__actions">
         <Button full onClick={submit} disabled={!canSave} variant="primary">
-          {existing ? 'Guardar revisión' : 'Guardar revisión'}
-        </Button>
-        <Button full variant="ghost" onClick={() => onNavigate('contrato')}>
-          Firmar contrato de la próxima semana
+          Guardar revisión
         </Button>
         {saved && <p className="t-review__saved">Revisión guardada. El historial se mantiene.</p>}
       </div>
-
-      <p className="t-review__foot">
-        No hay veredicto ni castigo. Solo información para firmar mejor la próxima semana.
-      </p>
-
-      <style>{css}</style>
-    </section>
+    </>
   );
 }
 
@@ -132,6 +172,14 @@ const css = `
 .t-review { display: flex; flex-direction: column; gap: 24px; }
 .t-review__title { font-size: clamp(28px, 6vw, 36px); }
 .t-review__range { color: var(--gold); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; }
+
+.t-review__weeks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.t-review__week {
+  min-height: 44px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg-2); color: var(--fg-2); font-size: 13px; font-weight: 600;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.t-review__week.is-active { color: var(--gold); border-color: var(--gold); background: var(--gold-dim); }
 
 .t-review__summary {
   display: flex; flex-direction: column; gap: 12px;
@@ -144,7 +192,7 @@ const css = `
 }
 .t-review__name { font-family: var(--font-display); font-size: 18px; color: var(--fg-1); }
 .t-review__stats { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: var(--fg-2); }
-.t-review__stat em { font-style: normal; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); margin-left: 3px; }
+.t-review__stat em { font-style: normal; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-2); margin-left: 3px; }
 .t-review__stat--normal { color: var(--gold); }
 .t-review__stat--min { color: var(--minimum); }
 .t-review__stat--miss { color: var(--danger); }
@@ -153,7 +201,7 @@ const css = `
 .t-review__actions { display: flex; flex-direction: column; gap: 10px; }
 .t-review__saved { text-align: center; color: var(--gold); font-size: 13px; margin: 4px 0 0; }
 .t-review__foot {
-  color: var(--fg-3); font-size: 12px; text-align: center;
+  color: var(--fg-2); font-size: 12px; text-align: center;
   font-family: var(--font-display); font-style: italic; font-variation-settings: 'opsz' 144, 'SOFT' 100;
 }
 `;

@@ -155,3 +155,13 @@ describe('RESTORE · sustituye todo el estado por la copia', () => {
     expect(next.days).toHaveLength(1);
   });
 });
+
+describe('SAVE_CONTRACT · orden', () => {
+  it('mantiene los contratos ordenados por fecha de inicio', () => {
+    const state = baseState();
+    const w37: WeeklyContract = { ...original, weekKey: '2026-W37', startDate: '2026-09-07', signedAt: '2026-09-07' };
+    const w35: WeeklyContract = { ...original, weekKey: '2026-W35', startDate: '2026-08-24', signedAt: '2026-08-24' };
+    const next = reducer(reducer(state, { type: 'SAVE_CONTRACT', contract: w37 }), { type: 'SAVE_CONTRACT', contract: w35 });
+    expect(next.contracts.map((c) => c.weekKey)).toEqual(['2026-W35', '2026-W36', '2026-W37']);
+  });
+});

@@ -17,8 +17,15 @@ import type {
   WeeklyContract,
   WeeklyReview,
 } from '../types';
-import { currentWeekKey, startOfISOWeek, toISODate, today } from './date';
+import { currentWeekKey, parseISODate, startOfISOWeek, toISODate, today, weekKey } from './date';
 import { defaultStorage, emptyState, readStoredState, writeStoredState } from './storage';
+import {
+  contractForWeek,
+  latestContractBefore,
+  newContractForWeekStarting,
+  nextWeekStart,
+  sortContracts,
+} from './contracts';
 
 const initialState: AppState = emptyState;
 
@@ -63,7 +70,7 @@ export function reducer(state: AppState, action: Action): AppState {
             createdAt: previous.createdAt,
           }
         : action.contract;
-      return { ...state, contracts: [...others, contract] };
+      return { ...state, contracts: sortContracts([...others, contract]) };
     }
 
     case 'MARK': {
@@ -132,16 +139,18 @@ export function uid(): string {
   );
 }
 
+/** 'current' = semana en curso · 'next' = la semana que empieza el próximo lunes. */
+export type ContractTarget = 'current' | 'next';
+
+export function newContractFor(commitments: Commitment[], target: ContractTarget): WeeklyContract {
+  const now = new Date();
+  const start = target === 'next' ? nextWeekStart(now) : toISODate(startOfISOWeek(now));
+  return newContractForWeekStarting(commitments, start, now);
+}
+
+/** @deprecated usa newContractFor(commitments, 'current'). */
 export function newContractForCurrentWeek(commitments: Commitment[]): WeeklyContract {
-  const wk = currentWeekKey();
-  const start = startOfISOWeek(new Date());
-  return {
-    weekKey: wk,
-    startDate: toISODate(start),
-    signedAt: today(),
-    commitments,
-    createdAt: new Date().toISOString(),
-  };
+  return newContractFor(commitments, 'current');
 }
 
 export type StorageStatus = {
@@ -158,7 +167,7 @@ export type StorageStatus = {
 type StoreValue = {
   state: AppState;
   setProfile: (p: Profile) => void;
-  saveContract: (commitments: Commitment[]) => void;
+  saveContract: (commitments: Commitment[], target?: ContractTarget) => void;
   mark: (commitmentId: string, status: CommitmentStatus, date?: string) => void;
   setNote: (commitmentId: string, note: string, date?: string) => void;
   saveReview: (review: Omit<WeeklyReview, 'createdAt'>) => void;
@@ -166,7 +175,12 @@ type StoreValue = {
   /** Sustituye todo el estado por una copia ya validada. */
   restore: (next: AppState) => void;
   storage: StorageStatus;
+  /** Contrato de la semana en curso, o null si aún no se ha firmado. */
   activeContract: WeeklyContract | null;
+  /** Contrato más reciente anterior a la semana en curso. */
+  previousContract: WeeklyContract | null;
+  /** Contrato ya preparado para la próxima semana, si existe. */
+  nextContract: WeeklyContract | null;
   todayEntry: DayEntry | null;
 };
 
@@ -189,8 +203,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_PROFILE', profile });
   }, []);
 
-  const saveContract = useCallback((commitments: Commitment[]) => {
-    dispatch({ type: 'SAVE_CONTRACT', contract: newContractForCurrentWeek(commitments) });
+  const saveContract = useCallback((commitments: Commitment[], target: ContractTarget = 'current') => {
+    dispatch({ type: 'SAVE_CONTRACT', contract: newContractFor(commitments, target) });
   }, []);
 
   const mark = useCallback(
@@ -225,8 +239,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<StoreValue>(() => {
-    const activeContract =
-      state.contracts.length > 0 ? state.contracts[state.contracts.length - 1] : null;
+    const now = new Date();
+    const thisWeek = currentWeekKey();
+    const activeContract = contractForWeek(state.contracts, thisWeek);
+    const previousContract = latestContractBefore(state.contracts, thisWeek);
+    const nextContract = contractForWeek(state.contracts, weekKey(parseISODate(nextWeekStart(now))));
     const todayISO = today();
     const todayEntry = state.days.find((d) => d.date === todayISO) ?? null;
     return {
@@ -245,6 +262,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         untouched: state === loaded.state,
       },
       activeContract,
+      previousContract,
+      nextContract,
       todayEntry,
     };
   }, [state, setProfile, saveContract, mark, setNote, saveReview, resetAll, restore, loaded, lastSaveFailed]);

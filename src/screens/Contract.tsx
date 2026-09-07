@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Button } from '../components/Button';
 import { TextField, TextAreaField } from '../components/Field';
-import { useStore } from '../state/store';
-import { currentWeekKey, startOfISOWeek, toISODate, weekRangeLabel } from '../state/date';
+import { useStore, type ContractTarget } from '../state/store';
+import { startOfISOWeek, toISODate, weekRangeLabel } from '../state/date';
+import { nextWeekStart } from '../state/contracts';
 import {
   MAX_COMMITMENTS,
   draftsToCommitments,
@@ -10,17 +11,43 @@ import {
   toDrafts,
   type Draft,
 } from '../state/contractDraft';
+import type { WeeklyContract } from '../types';
 
-type Props = { onSaved: () => void };
+type Props = { target?: ContractTarget; onSaved: () => void };
 
-export function Contract({ onSaved }: Props) {
-  const { activeContract, saveContract } = useStore();
-  const currentIsThisWeek = activeContract?.weekKey === currentWeekKey();
-  const initial = currentIsThisWeek ? activeContract!.commitments : [];
-  const [drafts, setDrafts] = useState<Draft[]>(toDrafts(initial));
+export function Contract({ target = 'current', onSaved }: Props) {
+  const { activeContract, previousContract, nextContract, saveContract } = useStore();
 
-  const start = startOfISOWeek(new Date());
-  const range = weekRangeLabel(toISODate(start));
+  // Contrato ya firmado para la semana objetivo (si lo hay) y fuente para
+  // prellenar cuando aún no existe: el contrato más reciente. Al prellenar se
+  // conservan los ids de los compromisos: son el mismo hábito que continúa.
+  const existing: WeeklyContract | null = target === 'next' ? nextContract : activeContract;
+  const prefill: WeeklyContract | null = existing
+    ? null
+    : target === 'next'
+      ? (activeContract ?? previousContract)
+      : previousContract;
+
+  const [drafts, setDrafts] = useState<Draft[]>(() =>
+    toDrafts((existing ?? prefill)?.commitments ?? [])
+  );
+  const [fromScratch, setFromScratch] = useState(false);
+
+  const weekStart = target === 'next' ? nextWeekStart(new Date()) : toISODate(startOfISOWeek(new Date()));
+  const range = weekRangeLabel(weekStart);
+
+  const title = existing
+    ? target === 'next'
+      ? 'Ajusta la próxima semana'
+      : 'Ajusta tu contrato'
+    : target === 'next'
+      ? 'Prepara la próxima semana'
+      : 'Firma la semana';
+  const cta = existing
+    ? 'Guardar cambios'
+    : target === 'next'
+      ? 'Dejar preparada la próxima semana'
+      : 'Firmar contrato';
 
   function update(i: number, patch: Partial<Draft>) {
     setDrafts((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
@@ -32,11 +59,15 @@ export function Contract({ onSaved }: Props) {
   function remove(i: number) {
     setDrafts((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i)));
   }
+  function startFromScratch() {
+    setDrafts([emptyDraft()]);
+    setFromScratch(true);
+  }
 
   function submit() {
     const cleaned = draftsToCommitments(drafts);
     if (cleaned.length === 0) return;
-    saveContract(cleaned);
+    saveContract(cleaned, target);
     onSaved();
   }
 
@@ -47,16 +78,34 @@ export function Contract({ onSaved }: Props) {
   return (
     <section className="t-contract">
       <header className="t-contract__head">
-        <p className="eyebrow eyebrow--gold">Contrato semanal</p>
-        <h1 className="display t-contract__title">
-          {currentIsThisWeek ? 'Ajusta tu contrato' : 'Firma la semana'}
-        </h1>
+        <p className="eyebrow eyebrow--gold">
+          {target === 'next' ? 'Contrato · próxima semana' : 'Contrato semanal'}
+        </p>
+        <h1 className="display t-contract__title">{title}</h1>
         <p className="t-contract__range">{range}</p>
         <p className="t-contract__help">
           Elige entre 1 y 3 compromisos. Para cada uno, deja claro qué es la versión
           normal y qué es la versión mínima cuando el día se tuerce.
         </p>
       </header>
+
+      {prefill && !fromScratch && (
+        <div className="t-contract__prefill" role="note">
+          <p>
+            Basado en tu contrato de la semana del {weekRangeLabel(prefill.startDate)}. Ajusta lo
+            que quieras y firma.
+          </p>
+          <button type="button" className="t-contract__scratch" onClick={startFromScratch}>
+            Empezar de cero
+          </button>
+        </div>
+      )}
+
+      {target === 'next' && (
+        <p className="t-contract__note">
+          Se activará el lunes. Hasta entonces sigue contando tu contrato actual.
+        </p>
+      )}
 
       <div className="t-contract__list">
         {drafts.map((d, i) => (
@@ -123,7 +172,7 @@ export function Contract({ onSaved }: Props) {
 
       <div className="t-contract__actions">
         <Button full onClick={submit} disabled={!valid}>
-          {currentIsThisWeek ? 'Guardar cambios' : 'Firmar contrato'}
+          {cta}
         </Button>
       </div>
 
@@ -140,6 +189,18 @@ const css = `
   color: var(--gold); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase;
 }
 .t-contract__help { color: var(--fg-2); font-size: 14px; line-height: 1.55; }
+
+.t-contract__prefill {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  padding: 12px 14px; border-left: 2px solid var(--gold); background: var(--gold-dim);
+  border-radius: 0 12px 12px 0; color: var(--fg-1); font-size: 14px; line-height: 1.5;
+}
+.t-contract__scratch {
+  color: var(--fg-2); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
+  min-height: 44px; padding: 0 4px; transition: color .2s;
+}
+.t-contract__scratch:hover { color: var(--gold); }
+.t-contract__note { color: var(--fg-2); font-size: 13px; line-height: 1.5; }
 
 .t-contract__list { display: flex; flex-direction: column; gap: 16px; }
 
@@ -158,8 +219,9 @@ const css = `
   font-size: 22px; color: var(--gold); min-width: 32px;
 }
 .t-cmt__remove {
-  margin-left: auto; color: var(--fg-3); font-size: 11px;
+  margin-left: auto; color: var(--fg-2); font-size: 11px;
   letter-spacing: 0.2em; text-transform: uppercase;
+  min-height: 44px; padding: 0 8px;
   transition: color .2s;
 }
 .t-cmt__remove:hover { color: var(--danger); }

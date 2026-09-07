@@ -1,6 +1,7 @@
 import type { AppState, WeeklyContract } from '../types';
-import { today } from './date';
+import { parseISODate, today, weekKey } from './date';
 import { computeStreak } from './stats';
+import { contractForWeek } from './contracts';
 
 type CoachTone = 'salida' | 'firme' | 'sostén' | 'reconducir' | 'racha';
 
@@ -9,15 +10,14 @@ export type CoachMessage = {
   text: string;
 };
 
-function activeContract(state: AppState): WeeklyContract | null {
-  if (state.contracts.length === 0) return null;
-  return state.contracts[state.contracts.length - 1];
+function activeContract(state: AppState, todayISO: string): WeeklyContract | null {
+  return contractForWeek(state.contracts, weekKey(parseISODate(todayISO)));
 }
 
-function statusOfToday(state: AppState) {
-  const contract = activeContract(state);
+function statusOfToday(state: AppState, todayISO: string) {
+  const contract = activeContract(state, todayISO);
   if (!contract) return { marked: 0, normal: 0, minimum: 0, missed: 0, total: 0 };
-  const day = state.days.find((d) => d.date === today());
+  const day = state.days.find((d) => d.date === todayISO);
   const total = contract.commitments.length;
   if (!day) return { marked: 0, normal: 0, minimum: 0, missed: 0, total };
   let normal = 0, minimum = 0, missed = 0;
@@ -32,13 +32,13 @@ function statusOfToday(state: AppState) {
 }
 
 // Selecciona el mensaje del día. Firme, breve, no culpabiliza.
-export function coachMessage(state: AppState): CoachMessage {
-  const contract = activeContract(state);
+export function coachMessage(state: AppState, todayISO: string = today()): CoachMessage {
+  const contract = activeContract(state, todayISO);
   if (!contract) {
     return { tone: 'salida', text: 'Antes de arrancar, firma tu contrato de la semana.' };
   }
-  const s = statusOfToday(state);
-  const streak = computeStreak(state, contract);
+  const s = statusOfToday(state, todayISO);
+  const streak = computeStreak(state, contract, todayISO);
 
   if (s.total === 0) {
     return { tone: 'salida', text: 'Sin compromisos todavía. Añade uno y empieza pequeño.' };
