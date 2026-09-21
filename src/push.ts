@@ -9,6 +9,7 @@ export const APP_URL = 'https://qrecall.github.io/titan-habits/';
 
 const ID_KEY = 'titan.push.id';
 const LAST_KEY = 'titan.push.lastKey';
+const REG_KEY = 'titan.push.registered';
 const DB = 'titan-push';
 const STORE = 'kv';
 
@@ -22,23 +23,39 @@ function ls(): Storage | null {
   }
 }
 
-export function pushId(): string | null {
+function lsGet(key: string): string | null {
   try {
-    return ls()?.getItem(ID_KEY) ?? null;
+    return ls()?.getItem(key) ?? null;
   } catch {
     return null;
   }
+}
+
+function lsSet(key: string, value: string): void {
+  try {
+    ls()?.setItem(key, value);
+  } catch {
+    /* sin almacenamiento: no persiste */
+  }
+}
+
+function lsRemove(key: string): void {
+  try {
+    ls()?.removeItem(key);
+  } catch {
+    /* sin almacenamiento: no persiste */
+  }
+}
+
+export function pushId(): string | null {
+  return lsGet(ID_KEY);
 }
 
 function ensureId(): string {
   const existing = pushId();
   if (existing) return existing;
   const id = newPushId();
-  try {
-    ls()?.setItem(ID_KEY, id);
-  } catch {
-    /* sin almacenamiento: el id vive solo esta sesión */
-  }
+  lsSet(ID_KEY, id);
   return id;
 }
 
@@ -57,7 +74,8 @@ export async function pushStatus(): Promise<PushStatus> {
   if (Notification.permission === 'denied') return 'denied';
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
-  return sub && pushId() ? 'on' : 'off';
+  const registered = lsGet(REG_KEY);
+  return sub && pushId() && registered === sub.endpoint ? 'on' : 'off';
 }
 
 async function call(path: string, method: 'POST' | 'PUT', body: unknown): Promise<Response> {
@@ -79,12 +97,20 @@ function saveNotices(rows: ForecastRow[]): Promise<void> {
     open.onerror = () => resolve();
     open.onsuccess = () => {
       const db = open.result;
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(rows.map(noticeFor), 'notices');
-      tx.oncomplete = tx.onerror = () => {
+      try {
+        const tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(rows.map(noticeFor), 'notices');
+        const done = () => {
+          db.close();
+          resolve();
+        };
+        tx.oncomplete = done;
+        tx.onerror = done;
+        tx.onabort = done;
+      } catch {
         db.close();
         resolve();
-      };
+      }
     };
   });
 }
@@ -95,10 +121,10 @@ export async function syncForecast(rows: ForecastRow[]): Promise<void> {
   const id = pushId();
   if (!id) return;
   const key = forecastKey(rows);
-  if (ls()?.getItem(LAST_KEY) === key) return;
+  if (lsGet(LAST_KEY) === key) return;
   try {
     await call('/table', 'PUT', { id, rows });
-    ls()?.setItem(LAST_KEY, key);
+    lsSet(LAST_KEY, key);
   } catch {
     /* sin conexión: se reintenta en el próximo cambio o al abrir la app */
   }
@@ -117,7 +143,8 @@ export async function enablePush(rows: ForecastRow[]): Promise<PushStatus> {
     }));
   const id = ensureId();
   await call('/register', 'POST', { id, subscription: { endpoint: sub.endpoint } });
-  ls()?.removeItem(LAST_KEY);
+  lsSet(REG_KEY, sub.endpoint);
+  lsRemove(LAST_KEY);
   await syncForecast(rows);
   return 'on';
 }
@@ -126,6 +153,9 @@ export async function sendTestPush(): Promise<{ ok: boolean; status: number }> {
   const id = pushId();
   if (!id) return { ok: false, status: 0 };
   const res = await call('/test', 'POST', { id });
-  if (res.status === 409) return { ok: false, status: 409 };
+  if (res.status === 409) {
+    lsRemove(REG_KEY);
+    return { ok: false, status: 409 };
+  }
   return (await res.json()) as { ok: boolean; status: number };
 }

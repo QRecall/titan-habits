@@ -71,15 +71,24 @@ function readNotices() {
     open.onerror = () => resolve(null);
     open.onsuccess = () => {
       const db = open.result;
-      const req = db.transaction('kv', 'readonly').objectStore('kv').get('notices');
-      req.onsuccess = () => {
-        db.close();
-        resolve(req.result || null);
-      };
-      req.onerror = () => {
-        db.close();
+      try {
+        const req = db.transaction('kv', 'readonly').objectStore('kv').get('notices');
+        req.onsuccess = () => {
+          db.close();
+          resolve(req.result || null);
+        };
+        req.onerror = () => {
+          db.close();
+          resolve(null);
+        };
+      } catch (e) {
+        try {
+          db.close();
+        } catch (_) {
+          /* ya cerrada o inválida */
+        }
         resolve(null);
-      };
+      }
     };
   });
 }
@@ -95,9 +104,9 @@ self.addEventListener('push', (event) => {
       const notices = await readNotices();
       const today = localISODate(new Date());
       const n = Array.isArray(notices) ? notices.find((x) => x && x.date === today) : null;
-      if (n && self.navigator.setAppBadge) {
+      if (self.navigator.setAppBadge) {
         try {
-          if (n.badge > 0) await self.navigator.setAppBadge(n.badge);
+          if (n && n.badge > 0) await self.navigator.setAppBadge(n.badge);
           else await self.navigator.clearAppBadge();
         } catch (e) {
           /* sin permiso de número: seguimos con el aviso */
