@@ -1,0 +1,15 @@
+name = "titan-push"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://qrecall.github.io"
+VAPID_SUBJECT = "https://qrecall.github.io/titan-habits/"
+
+[[kv_namespaces]]
+binding = "TITAN"
+id = "de67b23459f1486988f25d6ef5dea0f5"
+
+[triggers]
+crons = ["0 6 * * *", "0 7 * * *"]
