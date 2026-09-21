@@ -84,7 +84,20 @@ export async function pushStatus(): Promise<PushStatus> {
   return sub && pushId() && registered === sub.endpoint ? 'on' : 'off';
 }
 
-async function call(path: string, method: 'POST' | 'PUT', body: unknown): Promise<Response> {
+/** `tolerated`: códigos de error que esta llamada puede devolver sin que se
+ * considere un fallo (el llamante los inspecciona él mismo). Por defecto
+ * ninguno: `/register` y `/table` deben lanzar ante cualquier respuesta que
+ * no sea 2xx, para que una escritura fallida no se dé nunca por buena (por
+ * ejemplo, un 404/410/409 en `/register` no debe guardarse como registrada,
+ * ni un 404/410/409 en `/table` debe marcarse como subida). Solo el aviso de
+ * prueba, que solo lee el estado para decidir si la suscripción caducó, pasa
+ * `[404, 409, 410]`. */
+async function call(
+  path: string,
+  method: 'POST' | 'PUT',
+  body: unknown,
+  tolerated: readonly number[] = []
+): Promise<Response> {
   const res = await runSpaced(() =>
     fetch(`${WORKER_URL}${path}`, {
       method,
@@ -92,7 +105,7 @@ async function call(path: string, method: 'POST' | 'PUT', body: unknown): Promis
       body: JSON.stringify(body),
     })
   );
-  if (!res.ok && res.status !== 409 && res.status !== 404 && res.status !== 410) {
+  if (!res.ok && !tolerated.includes(res.status)) {
     throw new Error(`HTTP ${res.status}`);
   }
   return res;
@@ -185,7 +198,7 @@ async function unsubscribeStale(): Promise<void> {
 export async function sendTestPush(): Promise<{ ok: boolean; status: number }> {
   const id = pushId();
   if (!id) return { ok: false, status: 0 };
-  const res = await call('/test', 'POST', { id });
+  const res = await call('/test', 'POST', { id }, [404, 409, 410]);
   if (res.status === 404 || res.status === 409 || res.status === 410) {
     lsRemove(REG_KEY);
     await unsubscribeStale();
