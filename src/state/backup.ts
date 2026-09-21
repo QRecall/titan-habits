@@ -28,6 +28,7 @@ export type BackupSummary = {
   days: number;
   marks: number;
   notes: number;
+  facts: number;
   reviews: number;
 };
 
@@ -59,7 +60,9 @@ export function summarizeBackup(backup: Backup): BackupSummary {
   const { data } = backup;
   let marks = 0;
   let notes = 0;
+  let facts = 0;
   for (const d of data.days) {
+    if (d.fact) facts++;
     for (const m of d.marks) {
       if (m.status) marks++;
       if (m.note) notes++;
@@ -73,6 +76,7 @@ export function summarizeBackup(backup: Backup): BackupSummary {
     days: data.days.length,
     marks,
     notes,
+    facts,
     reviews: data.reviews.length,
   };
 }
@@ -168,11 +172,15 @@ function parseMark(v: unknown, path: string): DayMark {
 
 function parseDay(v: unknown, path: string): DayEntry {
   const o = obj(v, path);
-  return {
+  const day: DayEntry = {
     date: isoDate(o, 'date', path),
     weekKey: str(o, 'weekKey', path),
     marks: list(o.marks, `${path}.marks`).map((m, i) => parseMark(m, `${path}.marks[${i}]`)),
   };
+  // Hecho del día: opcional; las copias anteriores no lo llevan.
+  const fact = optionalStr(o, 'fact', path);
+  if (fact) day.fact = fact;
+  return day;
 }
 
 function parseReview(v: unknown, path: string): WeeklyReview {

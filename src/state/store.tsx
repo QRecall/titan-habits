@@ -17,6 +17,7 @@ import type {
   WeeklyContract,
   WeeklyReview,
 } from '../types';
+import { FACT_MAX } from '../types';
 import { currentWeekKey, parseISODate, startOfISOWeek, toISODate, today, weekKey } from './date';
 import { defaultStorage, emptyState, readStoredState, writeStoredState } from './storage';
 import {
@@ -36,6 +37,7 @@ export type Action =
   | { type: 'SAVE_CONTRACT'; contract: WeeklyContract }
   | { type: 'MARK'; date: string; weekKey: string; commitmentId: string; status: CommitmentStatus }
   | { type: 'NOTE'; date: string; weekKey: string; commitmentId: string; note: string }
+  | { type: 'SET_FACT'; date: string; weekKey: string; fact: string }
   | { type: 'SAVE_REVIEW'; review: WeeklyReview };
 
 export function reducer(state: AppState, action: Action): AppState {
@@ -122,6 +124,26 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     }
 
+    case 'SET_FACT': {
+      // Una línea, como mucho FACT_MAX caracteres. Vacío (o sólo espacios)
+      // elimina el campo; el día y sus marcas no se tocan.
+      const fact = action.fact.replace(/[\r\n]+/g, ' ').slice(0, FACT_MAX);
+      const day = state.days.find((d) => d.date === action.date);
+      if (!day) {
+        if (fact.trim() === '') return state;
+        return {
+          ...state,
+          days: [...state.days, { date: action.date, weekKey: action.weekKey, marks: [], fact }],
+        };
+      }
+      const nextDay: DayEntry = { ...day, fact };
+      if (fact.trim() === '') delete nextDay.fact;
+      return {
+        ...state,
+        days: state.days.map((d) => (d.date === action.date ? nextDay : d)),
+      };
+    }
+
     case 'SAVE_REVIEW': {
       const others = state.reviews.filter((r) => r.weekKey !== action.review.weekKey);
       return { ...state, reviews: [...others, action.review] };
@@ -170,6 +192,8 @@ type StoreValue = {
   saveContract: (commitments: Commitment[], target?: ContractTarget) => void;
   mark: (commitmentId: string, status: CommitmentStatus, date?: string) => void;
   setNote: (commitmentId: string, note: string, date?: string) => void;
+  /** Hecho relevante del día (hoy por defecto). Vacío lo elimina. */
+  setFact: (fact: string, date?: string) => void;
   saveReview: (review: Omit<WeeklyReview, 'createdAt'>) => void;
   resetAll: () => void;
   /** Sustituye todo el estado por una copia ya validada. */
@@ -223,6 +247,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const setFact = useCallback((fact: string, date?: string) => {
+    const iso = date ?? today();
+    dispatch({ type: 'SET_FACT', date: iso, weekKey: weekKey(parseISODate(iso)), fact });
+  }, []);
+
   const saveReview = useCallback((review: Omit<WeeklyReview, 'createdAt'>) => {
     dispatch({
       type: 'SAVE_REVIEW',
@@ -252,6 +281,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveContract,
       mark,
       setNote,
+      setFact,
       saveReview,
       resetAll,
       restore,
@@ -266,7 +296,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       nextContract,
       todayEntry,
     };
-  }, [state, setProfile, saveContract, mark, setNote, saveReview, resetAll, restore, loaded, lastSaveFailed]);
+  }, [state, setProfile, saveContract, mark, setNote, setFact, saveReview, resetAll, restore, loaded, lastSaveFailed]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

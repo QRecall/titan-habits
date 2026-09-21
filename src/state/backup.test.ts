@@ -140,6 +140,7 @@ describe('summarizeBackup', () => {
       days: 2,
       marks: 2,
       notes: 2,
+      facts: 0,
       reviews: 1,
     });
   });

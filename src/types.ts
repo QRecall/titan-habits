@@ -28,7 +28,11 @@ export type DayEntry = {
   date: string;
   weekKey: string;
   marks: DayMark[];
+  /** Hecho relevante del día: una línea de texto libre (máx. FACT_MAX). Ausente si no hay. */
+  fact?: string;
 };
+
+export const FACT_MAX = 120;
 
 export type WeeklyReview = {
   weekKey: string;

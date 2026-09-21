@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useStore } from '../state/store';
 import { ProgressRing } from '../components/ProgressRing';
 import { Button } from '../components/Button';
+import { MonthChart } from '../components/MonthChart';
 import { computeStreakAcross, computeWeekStats } from '../state/stats';
 import { daysInWeek, shortDayLabel, today } from '../state/date';
 import type { CommitmentStatus, Screen } from '../types';
@@ -114,6 +115,8 @@ export function Progress({ onNavigate }: Props) {
           ))}
         </div>
       </div>
+
+      <MonthChart state={state} todayISO={todayISO} />
 
       <style>{css}</style>
     </section>

@@ -423,7 +423,7 @@ function SummaryList({
       <div>
         <dt>Días con registro</dt>
         <dd>
-          {summary.days} · {summary.marks} marcas · {summary.notes} notas
+          {summary.days} · {summary.marks} marcas · {summary.notes} notas · {summary.facts} hechos
         </dd>
       </div>
       <div>

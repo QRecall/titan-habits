@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { CommitmentCard } from '../components/CommitmentCard';
 import { Button } from '../components/Button';
 import { Mascot } from '../components/Mascot';
+import { DayFact } from '../components/DayFact';
 import { coachMessage } from '../state/coach';
 import { computeStreakAcross, computeWeekStats } from '../state/stats';
 import { flameLevel, heatRatio, moodFor, todayStatus } from '../state/mood';
@@ -92,6 +93,8 @@ export function Arranque({ onNavigate }: Props) {
           return <CommitmentCard key={c.id} commitment={c} mark={mark} />;
         })}
       </div>
+
+      <DayFact />
 
       <p className="t-arranque__foot">
         La versión <em>mínima</em> también mantiene vivo el hábito. Un ladrillo hoy
