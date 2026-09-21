@@ -9,6 +9,9 @@ import { MyData } from './screens/MyData';
 import { StoreProvider, useStore } from './state/store';
 import { pendingToday } from './state/stats';
 import { updateAppBadge } from './pwa';
+import { buildForecast } from './state/forecast';
+import { today } from './state/date';
+import { syncForecast } from './push';
 import type { Screen } from './types';
 
 function Shell() {
@@ -17,9 +20,10 @@ function Shell() {
   const needsContract = !!state.profile && !activeContract;
   const [screen, setScreen] = useState<Screen>('arranque');
 
-  // Número en el icono de la app instalada: compromisos pendientes hoy.
+  // Número en el icono y previsión para el aviso de las 8:00 y el widget.
   useEffect(() => {
     updateAppBadge(pendingToday(state));
+    void syncForecast(buildForecast(state, today()));
   }, [state]);
 
   // "Mis datos" es accesible siempre: también sin perfil (para restaurar una

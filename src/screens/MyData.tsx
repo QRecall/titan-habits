@@ -23,6 +23,18 @@ import {
   type BackupSummary,
 } from '../state/backup';
 import { defaultStorage, readRaw } from '../state/storage';
+import { buildForecast } from '../state/forecast';
+import { today } from '../state/date';
+import { widgetScript } from '../state/widget';
+import {
+  APP_URL,
+  WORKER_URL,
+  enablePush,
+  pushId,
+  pushStatus,
+  sendTestPush,
+  type PushStatus,
+} from '../push';
 import type { Screen } from '../types';
 
 type Props = { onNavigate: (s: Screen) => void };
@@ -158,6 +170,8 @@ export function MyData({ onNavigate }: Props) {
 
       <InstallPanel />
 
+      <PushPanel />
+
       <ReminderPanel onNotice={setNotice} />
 
       <div className="t-data__panel">
@@ -244,6 +258,121 @@ export function MyData({ onNavigate }: Props) {
   );
 }
 
+function PushPanel() {
+  const { state } = useStore();
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void pushStatus().then(setStatus);
+  }, []);
+
+  async function activate() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const next = await enablePush(buildForecast(state, today()));
+      setStatus(next);
+      setMsg(
+        next === 'on'
+          ? 'Aviso activado. Prueba el botón de aviso de prueba para comprobarlo.'
+          : next === 'denied'
+            ? 'Permiso denegado. Actívalo en Ajustes del iPhone, en la app TITAN.'
+            : 'No se activó: hace falta aceptar el permiso de notificaciones.'
+      );
+    } catch (e) {
+      setMsg(`No se pudo activar: ${(e as Error).message}. Comprueba la conexión y vuelve a intentarlo.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function test() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await sendTestPush();
+      if (r.ok) setMsg('Aviso enviado. Debería llegarte en unos segundos.');
+      else if (r.status === 409 || r.status === 404 || r.status === 410) {
+        setStatus('off');
+        setMsg('La suscripción ya no vale. Vuelve a activar el aviso.');
+      } else setMsg(`El servicio de avisos respondió ${r.status}.`);
+    } catch (e) {
+      setMsg(`No se pudo enviar: ${(e as Error).message}.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyWidget() {
+    const id = pushId();
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(widgetScript(WORKER_URL, id, APP_URL));
+      setMsg('Script copiado. Pégalo en un script nuevo de Scriptable.');
+    } catch {
+      setMsg('No se pudo copiar el script.');
+    }
+  }
+
+  return (
+    <div className="t-data__panel">
+      <p className="eyebrow">Aviso de las 8:00 y widget</p>
+      {status === 'unsupported' ? (
+        <p className="t-data__hint">
+          Para recibir el aviso, TITAN tiene que estar instalada en la pantalla de inicio y abierta
+          desde su icono.
+        </p>
+      ) : status === 'denied' ? (
+        <p className="t-data__hint">
+          El permiso de notificaciones está denegado. Actívalo en Ajustes del iPhone, en la app
+          TITAN, y vuelve aquí.
+        </p>
+      ) : status === 'on' ? (
+        <>
+          <p className="t-data__hint">
+            Cada día a las 8:00 te llega un aviso con tu racha y los compromisos del día, y el
+            número del icono se pone al día. Solo sale del móvil la racha y el número de
+            pendientes de cada día.
+          </p>
+          <div className="t-data__actions">
+            <Button full variant="ghost" onClick={() => void test()} disabled={busy}>
+              Enviar aviso de prueba
+            </Button>
+            <Button full variant="ghost" onClick={() => void copyWidget()} disabled={busy}>
+              Copiar script del widget
+            </Button>
+          </div>
+          <ol className="t-data__steps">
+            <li>Instala Scriptable desde la App Store.</li>
+            <li>En Scriptable pulsa +, pega el script y llámalo «TITAN».</li>
+            <li>
+              En la pantalla de inicio mantén pulsado, pulsa +, elige Scriptable y el widget
+              pequeño. Tócalo y en «Script» elige TITAN.
+            </li>
+          </ol>
+        </>
+      ) : status === 'off' ? (
+        <>
+          <p className="t-data__hint">
+            Cada día a las 8:00 un aviso con tu racha y los compromisos del día, y el número del
+            icono al día aunque no abras la app. Para eso sale del móvil solo la racha y el número
+            de pendientes de cada día, nunca los nombres ni las notas.
+          </p>
+          <Button full variant="ghost" onClick={() => void activate()} disabled={busy}>
+            Activar aviso de las 8:00
+          </Button>
+        </>
+      ) : null}
+      {msg && (
+        <p className="t-data__hint" role="status">
+          {msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ReminderPanel({ onNotice }: { onNotice: (n: string) => void }) {
   const [time, setTime] = useState('21:00');
 
@@ -258,7 +387,7 @@ function ReminderPanel({ onNotice }: { onNotice: (n: string) => void }) {
     <div className="t-data__panel">
       <p className="eyebrow">Recordatorio diario</p>
       <p className="t-data__hint">
-        TITAN no puede avisarte con la app cerrada: no tiene servidor. Tu calendario sí puede.
+        Si quieres otro recordatorio además del aviso de las 8:00, tu calendario puede dártelo.
         Elige una hora y descarga un recordatorio que se repite cada día; al abrirlo, el móvil te
         propondrá añadirlo.
       </p>
