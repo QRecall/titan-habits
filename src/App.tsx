@@ -26,6 +26,20 @@ function Shell() {
     void syncForecast(buildForecast(state, today()));
   }, [state]);
 
+  // Instalada en iPhone, la PWA puede reanudarse en primer plano días después
+  // sin remontar: al volver a estar visible, se rehace la previsión por si
+  // cambió el día (y, con él, la racha y los pendientes del widget).
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        updateAppBadge(pendingToday(state));
+        void syncForecast(buildForecast(state, today()));
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [state]);
+
   // "Mis datos" es accesible siempre: también sin perfil (para restaurar una
   // copia tras perder los datos) y cuando toca firmar el contrato de la semana.
   if (screen === 'datos') {

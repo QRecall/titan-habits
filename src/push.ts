@@ -2,6 +2,7 @@
  * Solo salen del móvil la suscripción y, por día, la racha y los pendientes. */
 import { forecastKey, noticeFor, type ForecastRow } from './state/forecast';
 import { fromBase64url, newPushId } from './state/pushId';
+import { createUploadQueue, createWriteGate } from './state/writeQueue';
 
 export const WORKER_URL = 'https://titan-push.titan-habits.workers.dev';
 const VAPID_PUBLIC_KEY = 'BDV1JVfzJ7gxLIMli3Qr60ABJ_Ma4cAStB6TxO6LvwCHX3K_wM6mtbR_s3-DPJ9ZjFeTkbaiYijBNgsO2DJjNr0';
@@ -12,6 +13,11 @@ const LAST_KEY = 'titan.push.lastKey';
 const REG_KEY = 'titan.push.registered';
 const DB = 'titan-push';
 const STORE = 'kv';
+
+/** Cloudflare KV admite ~1 escritura/segundo por clave; `u:<id>` la comparten
+ * POST /register y PUT /table, así que ambas pasan por el mismo espaciador. */
+const WORKER_WRITE_SPACING_MS = 1200;
+const runSpaced = createWriteGate(WORKER_WRITE_SPACING_MS);
 
 export type PushStatus = 'unsupported' | 'off' | 'on' | 'denied';
 
@@ -79,12 +85,16 @@ export async function pushStatus(): Promise<PushStatus> {
 }
 
 async function call(path: string, method: 'POST' | 'PUT', body: unknown): Promise<Response> {
-  const res = await fetch(`${WORKER_URL}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok && res.status !== 409) throw new Error(`HTTP ${res.status}`);
+  const res = await runSpaced(() =>
+    fetch(`${WORKER_URL}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  );
+  if (!res.ok && res.status !== 409 && res.status !== 404 && res.status !== 410) {
+    throw new Error(`HTTP ${res.status}`);
+  }
   return res;
 }
 
@@ -115,19 +125,28 @@ function saveNotices(rows: ForecastRow[]): Promise<void> {
   });
 }
 
-/** Actualiza la copia local y, si hay aviso activado y la previsión cambió, la sube. */
+/** Cola de subida de la tabla: como mucho un PUT /table en curso, espaciado
+ * frente a cualquier otra escritura al Worker; las llamadas rápidas seguidas
+ * (varias marcas de un tirón) se coalescen en la más reciente. Un fallo no
+ * reintenta solo: el próximo cambio de estado o apertura de la app lo retoma. */
+const tableQueue = createUploadQueue<ForecastRow[]>({
+  send: async (rows) => {
+    const id = pushId();
+    if (!id) return;
+    await call('/table', 'PUT', { id, rows });
+  },
+  key: forecastKey,
+  getLastSentKey: () => lsGet(LAST_KEY),
+  onSent: (key) => lsSet(LAST_KEY, key),
+});
+
+/** Actualiza la copia local (siempre, de inmediato) y, si hay aviso activado,
+ * encola la subida de la previsión al Worker (ver `tableQueue`). */
 export async function syncForecast(rows: ForecastRow[]): Promise<void> {
   await saveNotices(rows);
   const id = pushId();
   if (!id) return;
-  const key = forecastKey(rows);
-  if (lsGet(LAST_KEY) === key) return;
-  try {
-    await call('/table', 'PUT', { id, rows });
-    lsSet(LAST_KEY, key);
-  } catch {
-    /* sin conexión: se reintenta en el próximo cambio o al abrir la app */
-  }
+  tableQueue.request(rows);
 }
 
 export async function enablePush(rows: ForecastRow[]): Promise<PushStatus> {
@@ -149,13 +168,28 @@ export async function enablePush(rows: ForecastRow[]): Promise<PushStatus> {
   return 'on';
 }
 
+/** El Worker ya no tiene la suscripción (404/409/410): además de olvidar el
+ * endpoint registrado, nos damos de baja localmente para que la próxima
+ * activación cree una suscripción nueva en vez de reenviar la caducada. */
+async function unsubscribeStale(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    await sub?.unsubscribe();
+  } catch {
+    /* sin service worker, sin suscripción o sin permiso: no pasa nada, se
+     * reintenta al volver a activar el aviso */
+  }
+}
+
 export async function sendTestPush(): Promise<{ ok: boolean; status: number }> {
   const id = pushId();
   if (!id) return { ok: false, status: 0 };
   const res = await call('/test', 'POST', { id });
-  if (res.status === 409) {
+  if (res.status === 404 || res.status === 409 || res.status === 410) {
     lsRemove(REG_KEY);
-    return { ok: false, status: 409 };
+    await unsubscribeStale();
+    return { ok: false, status: res.status };
   }
   return (await res.json()) as { ok: boolean; status: number };
 }

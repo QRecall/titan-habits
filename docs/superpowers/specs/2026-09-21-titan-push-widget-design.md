@@ -93,7 +93,8 @@ Scriptable.
   - `GET /today?id=…` → `{ date, found, streak, pending }` de la fila de hoy en Madrid
     (`found: false` y nulos si no hay).
   - `POST /test {id}` → push inmediato a esa suscripción.
-  - CORS solo para `ALLOWED_ORIGIN`; `GET /today` sin CORS (lo lee Scriptable).
+  - CORS (`ALLOWED_ORIGIN` = `https://qrecall.github.io`) en todas las respuestas, incluida
+    `GET /today`; Scriptable la ignora (no es una petición de navegador).
   - `id` debe ser base64url de 22 caracteres; cualquier otra cosa → 400.
 - `scheduled`: si la hora de Madrid es 8 (`madridParts(now).hour === 8` con `Intl.DateTimeFormat`),
   recorre las claves `u:` y envía push vacío a cada suscripción.
