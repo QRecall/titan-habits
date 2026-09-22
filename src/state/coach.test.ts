@@ -22,4 +22,16 @@ describe('coachMessage', () => {
     expect(coachMessage(state, '2026-09-08').tone).toBe('salida');
     expect(coachMessage(state, '2026-09-08').text).toContain('contrato');
   });
+
+  it('un compromiso quitado hoy no cuenta para el "todo en normal"', () => {
+    const bRemovedToday = { id: 'b', name: 'B', normal: 'n', minimum: 'm', reason: '', removedOn: '2026-09-03' };
+    const contractWithRemoved: WeeklyContract = { ...w36, commitments: [A, bRemovedToday] };
+    const state: AppState = {
+      profile: null,
+      contracts: [contractWithRemoved],
+      days: [{ date: '2026-09-03', weekKey: '2026-W36', marks: [{ commitmentId: 'a', status: 'normal' }] }],
+      reviews: [],
+    };
+    expect(coachMessage(state, '2026-09-03').tone).toBe('firme');
+  });
 });

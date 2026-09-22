@@ -1,6 +1,6 @@
 import type { AppState, CommitmentStatus, WeeklyContract } from '../types';
 import { daysInWeek, parseISODate, toISODate, today, weekKey } from './date';
-import { contractForWeek } from './contracts';
+import { activeCommitments, contractForWeek, currentCommitments } from './contracts';
 
 export type CommitmentSummary = {
   commitmentId: string;
@@ -56,7 +56,6 @@ export function computeWeekStats(
   todayISO: string = today()
 ): WeekStats {
   const days = evaluableDates(contract, todayISO);
-  const total = contract.commitments.length;
 
   const per: Record<string, CommitmentSummary> = {};
   for (const c of contract.commitments) {
@@ -68,10 +67,13 @@ export function computeWeekStats(
   let minimumCount = 0;
   let missedCount = 0;
   let unmarkedCount = 0;
+  let denom = 0;
 
   for (const iso of days) {
-    let allOk = total > 0;
-    for (const c of contract.commitments) {
+    const active = activeCommitments(contract, iso);
+    denom += active.length;
+    let allOk = active.length > 0;
+    for (const c of active) {
       const s = statusOn(state, iso, c.id);
       const bucket = per[c.id];
       if (s === 'normal') {
@@ -93,12 +95,11 @@ export function computeWeekStats(
     if (allOk) daysHonored++;
   }
 
-  const denom = days.length * total;
   const percent = denom === 0 ? 0 : (normalCount + minimumCount) / denom;
 
   return {
     evaluableDays: days,
-    totalCommitments: total,
+    totalCommitments: currentCommitments(contract).length,
     daysHonored,
     normalCount,
     minimumCount,
@@ -130,9 +131,12 @@ export function computeStreak(
   let isFirst = true;
 
   while (cursor >= contract.signedAt) {
+    const active = activeCommitments(contract, cursor);
+    if (active.length === 0) break;
+
     let allDone = true;
     let anyFailed = false;
-    for (const c of contract.commitments) {
+    for (const c of active) {
       const s = statusOn(state, cursor, c.id);
       if (s === 'missed') {
         anyFailed = true;
@@ -179,11 +183,13 @@ export function computeStreakAcross(state: AppState, todayISO: string = today())
 
   for (;;) {
     const contract = contractForWeek(state.contracts, weekKey(parseISODate(cursor)));
-    if (!contract || contract.commitments.length === 0 || cursor < contract.signedAt) break;
+    if (!contract || cursor < contract.signedAt) break;
+    const active = activeCommitments(contract, cursor);
+    if (active.length === 0) break;
 
     let allDone = true;
     let anyFailed = false;
-    for (const c of contract.commitments) {
+    for (const c of active) {
       const s = statusOn(state, cursor, c.id);
       if (s === 'missed') {
         anyFailed = true;
@@ -208,5 +214,5 @@ export function computeStreakAcross(state: AppState, todayISO: string = today())
 export function pendingToday(state: AppState, todayISO: string = today()): number {
   const contract = contractForWeek(state.contracts, weekKey(parseISODate(todayISO)));
   if (!contract) return 0;
-  return contract.commitments.filter((c) => statusOn(state, todayISO, c.id) === null).length;
+  return activeCommitments(contract, todayISO).filter((c) => statusOn(state, todayISO, c.id) === null).length;
 }

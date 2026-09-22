@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AppState, DayEntry, WeeklyContract } from '../types';
+import type { AppState, Commitment, DayEntry, WeeklyContract } from '../types';
 import { computeStreak, computeStreakAcross, computeWeekStats, evaluableDates, pendingToday } from './stats';
-import { toISODate } from './date';
+import { parseISODate, toISODate, weekKey } from './date';
 
 function makeContract(signedAt: string, startDate = '2026-08-31'): WeeklyContract {
   return {
@@ -285,5 +285,102 @@ describe('pendingToday', () => {
   it('sin contrato para hoy devuelve 0', () => {
     const s: AppState = { ...makeState([]), contracts: [makeContract('2026-08-31')] };
     expect(pendingToday(s, '2026-09-08')).toBe(0);
+  });
+});
+
+describe('compromisos activos por día · añadir y quitar a mitad de semana', () => {
+  // Contrato de la semana W39, firmado el lunes 2026-09-21.
+  const START = '2026-09-21';
+  const WK = weekKey(parseISODate(START));
+  const A: Commitment = { id: 'a', name: 'A', normal: 'n', minimum: 'm', reason: 'r' };
+  const B: Commitment = { id: 'b', name: 'B', normal: 'n', minimum: 'm', reason: 'r' };
+
+  function w39(commitments: Commitment[]): WeeklyContract {
+    return { weekKey: WK, startDate: START, signedAt: START, commitments, createdAt: `${START}T00:00:00.000Z` };
+  }
+
+  function dayFull(date: string, ids: string[]): DayEntry {
+    return { date, weekKey: WK, marks: ids.map((id) => ({ commitmentId: id, status: 'normal' as const })) };
+  }
+
+  function withContract(days: DayEntry[], contract: WeeklyContract): AppState {
+    return { ...makeState(days), contracts: [contract] };
+  }
+
+  it('añadir un compromiso a mitad de semana no rompe la racha ni cambia los días previos', () => {
+    const n: Commitment = { id: 'n', name: 'N', normal: 'n', minimum: 'm', reason: 'r', since: '2026-09-23' };
+    const c = w39([A, B, n]);
+    const s = withContract(
+      [
+        dayFull('2026-09-21', ['a', 'b']),
+        dayFull('2026-09-22', ['a', 'b']),
+        dayFull('2026-09-23', ['a', 'b', 'n']),
+      ],
+      c
+    );
+    expect(computeStreakAcross(s, '2026-09-23')).toBe(3);
+    const stats = computeWeekStats(s, c, '2026-09-23');
+    expect(stats.daysHonored).toBe(3);
+    expect(stats.percent).toBe(1);
+  });
+
+  it('si el día del cambio no se marca el nuevo compromiso, corta la racha pero el pasado sigue cumplido', () => {
+    const n: Commitment = { id: 'n', name: 'N', normal: 'n', minimum: 'm', reason: 'r', since: '2026-09-23' };
+    const c = w39([A, B, n]);
+    const s = withContract(
+      [
+        dayFull('2026-09-21', ['a', 'b']),
+        dayFull('2026-09-22', ['a', 'b']),
+        dayFull('2026-09-23', ['a', 'b']), // falta 'n', que ya está activo
+      ],
+      c
+    );
+    expect(computeStreakAcross(s, '2026-09-23')).toBe(2);
+    expect(computeWeekStats(s, c, '2026-09-23').daysHonored).toBe(2);
+  });
+
+  it('quitar un compromiso a mitad de semana no cambia los días previos', () => {
+    const bRemoved: Commitment = { ...B, removedOn: '2026-09-24' };
+    const c = w39([A, bRemoved]);
+    const s = withContract(
+      [
+        dayFull('2026-09-21', ['a', 'b']),
+        dayFull('2026-09-22', ['a', 'b']),
+        dayFull('2026-09-23', ['a', 'b']),
+        dayFull('2026-09-24', ['a']), // 'b' ya no cuenta este día
+      ],
+      c
+    );
+    expect(computeStreakAcross(s, '2026-09-24')).toBe(4);
+    const stats = computeWeekStats(s, c, '2026-09-24');
+    expect(stats.daysHonored).toBe(4);
+    expect(stats.totalCommitments).toBe(1);
+    const bSummary = stats.perCommitment.find((p) => p.commitmentId === 'b')!;
+    expect(bSummary.normal).toBe(3);
+    expect(bSummary.unmarked).toBe(0);
+  });
+
+  it('pendingToday ignora el compromiso quitado ese mismo día', () => {
+    const bRemoved: Commitment = { ...B, removedOn: '2026-09-24' };
+    const c = w39([A, bRemoved]);
+    const s = withContract([], c);
+    expect(pendingToday(s, '2026-09-24')).toBe(1);
+  });
+
+  it('el porcentaje usa como denominador la suma de compromisos activos por día', () => {
+    const n: Commitment = { id: 'n', name: 'N', normal: 'n', minimum: 'm', reason: 'r', since: '2026-09-22' };
+    const c = w39([A, B, n]);
+
+    const full = withContract(
+      [dayFull('2026-09-21', ['a', 'b']), dayFull('2026-09-22', ['a', 'b', 'n'])],
+      c
+    );
+    expect(computeWeekStats(full, c, '2026-09-22').percent).toBe(1);
+
+    const partial = withContract(
+      [dayFull('2026-09-21', ['a', 'b']), dayFull('2026-09-22', ['a', 'b'])], // falta 'n'
+      c
+    );
+    expect(computeWeekStats(partial, c, '2026-09-22').percent).toBe(4 / 5);
   });
 });

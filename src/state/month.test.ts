@@ -124,3 +124,29 @@ describe('computeMonth · hábitos añadidos a mitad de mes', () => {
     expect(m.best?.date).toBe('2026-09-09');
   });
 });
+
+describe('computeMonth · compromiso quitado a mitad de semana', () => {
+  it('un día con el compromiso quitado no lo cuenta en active ni en done', () => {
+    const c: WeeklyContract = {
+      weekKey: '2026-W38',
+      startDate: '2026-09-14',
+      signedAt: '2026-09-14',
+      commitments: [
+        { id: 'a', name: 'a', normal: 'n', minimum: 'm', reason: 'r' },
+        { id: 'b', name: 'b', normal: 'n', minimum: 'm', reason: 'r', removedOn: '2026-09-16' },
+      ],
+      createdAt: '2026-09-14T00:00:00.000Z',
+    };
+    const s = state(
+      [c],
+      [
+        day('2026-09-14', '2026-W38', { a: 'normal', b: 'normal' }),
+        day('2026-09-16', '2026-W38', { a: 'normal' }),
+      ]
+    );
+    const m = computeMonth(s, '2026-09', '2026-09-20');
+    expect(m.days[13].active).toBe(2); // 14, 'b' todavía activo
+    expect(m.days[15].active).toBe(1); // 16, 'b' quitado ese día
+    expect(m.days[15].done).toBe(1); // solo 'a' cuenta, y está cumplido
+  });
+});

@@ -1,6 +1,6 @@
 import type { AppState } from '../types';
 import { parseISODate, pad, toISODate, weekKey } from './date';
-import { contractForWeek } from './contracts';
+import { activeCommitments, contractForWeek } from './contracts';
 
 export type MonthDay = {
   date: string;
@@ -57,12 +57,12 @@ export function datesInMonth(monthKey: string): string[] {
 export function computeMonth(state: AppState, monthKey: string, todayISO: string): MonthSummary {
   const days: MonthDay[] = datesInMonth(monthKey).map((date) => {
     const contract = contractForWeek(state.contracts, weekKey(parseISODate(date)));
-    const active = contract && date >= contract.signedAt ? contract.commitments.length : 0;
+    const active = contract && date >= contract.signedAt ? activeCommitments(contract, date).length : 0;
     const isFuture = date > todayISO;
     const entry = state.days.find((d) => d.date === date);
     let done: number | null = null;
     if (!isFuture && active > 0 && contract) {
-      done = contract.commitments.filter((c) => {
+      done = activeCommitments(contract, date).filter((c) => {
         const s = entry?.marks.find((m) => m.commitmentId === c.id)?.status;
         return s === 'normal' || s === 'minimum';
       }).length;
@@ -79,8 +79,9 @@ export function computeMonth(state: AppState, monthKey: string, todayISO: string
   const pendingToday = (d: MonthDay): boolean => {
     if (!d.isToday) return false;
     const contract = contractForWeek(state.contracts, weekKey(parseISODate(d.date)));
+    if (!contract) return false;
     const entry = state.days.find((e) => e.date === d.date);
-    return (contract?.commitments ?? []).some(
+    return activeCommitments(contract, d.date).some(
       (c) => (entry?.marks.find((m) => m.commitmentId === c.id)?.status ?? null) === null
     );
   };

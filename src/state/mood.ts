@@ -1,6 +1,6 @@
 import type { AppState } from '../types';
 import { parseISODate, today, weekKey } from './date';
-import { contractForWeek } from './contracts';
+import { activeCommitments, contractForWeek } from './contracts';
 
 export type TodayStatus = {
   total: number;
@@ -23,17 +23,18 @@ export type Mood = 'espera' | 'enmarcha' | 'firme' | 'vivo' | 'reconducir';
 export function todayStatus(state: AppState, todayISO: string = today()): TodayStatus {
   const contract = contractForWeek(state.contracts, weekKey(parseISODate(todayISO)));
   if (!contract) return { total: 0, normal: 0, minimum: 0, missed: 0, pending: 0 };
+  const active = activeCommitments(contract, todayISO);
   const day = state.days.find((d) => d.date === todayISO);
   let normal = 0;
   let minimum = 0;
   let missed = 0;
-  for (const c of contract.commitments) {
+  for (const c of active) {
     const s = day?.marks.find((m) => m.commitmentId === c.id)?.status ?? null;
     if (s === 'normal') normal++;
     else if (s === 'minimum') minimum++;
     else if (s === 'missed') missed++;
   }
-  const total = contract.commitments.length;
+  const total = active.length;
   return { total, normal, minimum, missed, pending: total - normal - minimum - missed };
 }
 

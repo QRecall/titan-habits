@@ -19,6 +19,16 @@ describe('todayStatus', () => {
   it('sin contrato → todo a cero', () => {
     expect(todayStatus(state([]), '2026-09-09').total).toBe(0);
   });
+  it('un compromiso quitado hoy no cuenta en el total', () => {
+    const bRemoved = { ...B, removedOn: '2026-09-02' };
+    const s: AppState = {
+      profile: null,
+      contracts: [{ ...w36, commitments: [A, bRemoved] }],
+      days: [{ date: '2026-09-02', weekKey: '2026-W36', marks: [{ commitmentId: 'a', status: 'normal' }] }],
+      reviews: [],
+    };
+    expect(todayStatus(s, '2026-09-02')).toEqual({ total: 1, normal: 1, minimum: 0, missed: 0, pending: 0 });
+  });
 });
 
 describe('moodFor', () => {

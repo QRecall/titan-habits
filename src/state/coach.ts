@@ -1,7 +1,7 @@
 import type { AppState, WeeklyContract } from '../types';
 import { parseISODate, today, weekKey } from './date';
 import { computeStreakAcross } from './stats';
-import { contractForWeek } from './contracts';
+import { activeCommitments, contractForWeek } from './contracts';
 
 type CoachTone = 'salida' | 'firme' | 'sostén' | 'reconducir' | 'racha';
 
@@ -17,11 +17,12 @@ function activeContract(state: AppState, todayISO: string): WeeklyContract | nul
 function statusOfToday(state: AppState, todayISO: string) {
   const contract = activeContract(state, todayISO);
   if (!contract) return { marked: 0, normal: 0, minimum: 0, missed: 0, total: 0 };
+  const active = activeCommitments(contract, todayISO);
   const day = state.days.find((d) => d.date === todayISO);
-  const total = contract.commitments.length;
+  const total = active.length;
   if (!day) return { marked: 0, normal: 0, minimum: 0, missed: 0, total };
   let normal = 0, minimum = 0, missed = 0;
-  for (const c of contract.commitments) {
+  for (const c of active) {
     const m = day.marks.find((x) => x.commitmentId === c.id);
     if (!m || !m.status) continue;
     if (m.status === 'normal') normal++;
