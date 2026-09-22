@@ -23,6 +23,7 @@ import {
   type BackupSummary,
 } from '../state/backup';
 import { defaultStorage, readRaw } from '../state/storage';
+import { markBackupDone } from '../state/backupReminder';
 import { buildForecast } from '../state/forecast';
 import { today } from '../state/date';
 import { widgetScript } from '../state/widget';
@@ -74,6 +75,7 @@ export function MyData({ onNavigate }: Props) {
   function downloadCurrent() {
     const now = new Date();
     downloadText(backupFilename(now), serializeBackup(createBackup(state, now)));
+    markBackupDone(today());
     setNotice('Copia descargada. Guárdala en un sitio seguro.');
   }
 

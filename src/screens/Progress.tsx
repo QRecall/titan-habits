@@ -4,7 +4,7 @@ import { ProgressRing } from '../components/ProgressRing';
 import { Button } from '../components/Button';
 import { MonthChart } from '../components/MonthChart';
 import { isActiveOn } from '../state/contracts';
-import { computeStreakAcross, computeWeekStats } from '../state/stats';
+import { bestStreak, computeStreakAcross, computeWeekStats } from '../state/stats';
 import { daysInWeek, shortDayLabel, today } from '../state/date';
 import type { CommitmentStatus, Screen } from '../types';
 
@@ -18,8 +18,9 @@ export function Progress({ onNavigate }: Props) {
     const todayISO = today();
     const stats = computeWeekStats(state, activeContract, todayISO);
     const streak = computeStreakAcross(state, todayISO);
+    const record = bestStreak(state, todayISO);
     const weekDays = daysInWeek(activeContract.startDate);
-    return { stats, streak, todayISO, weekDays };
+    return { stats, streak, record, todayISO, weekDays };
   }, [state, activeContract]);
 
   if (!activeContract || !view) {
@@ -33,7 +34,7 @@ export function Progress({ onNavigate }: Props) {
     );
   }
 
-  const { stats, streak, todayISO, weekDays } = view;
+  const { stats, streak, record, todayISO, weekDays } = view;
   const evaluableCount = stats.evaluableDays.length;
   const percentLabel = Math.round(stats.percent * 100) + '%';
 
@@ -57,6 +58,11 @@ export function Progress({ onNavigate }: Props) {
             value={`${streak}`}
             unit={streak === 1 ? 'día' : 'días'}
             accent
+          />
+          <Kpi
+            label="Récord"
+            value={`${record}`}
+            unit={record === 1 ? 'día' : 'días'}
           />
         </div>
       </div>

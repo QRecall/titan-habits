@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { CommitmentCard } from '../components/CommitmentCard';
 import { Button } from '../components/Button';
@@ -8,7 +8,8 @@ import { coachMessage } from '../state/coach';
 import { activeCommitments } from '../state/contracts';
 import { computeStreakAcross, computeWeekStats } from '../state/stats';
 import { flameLevel, heatRatio, moodFor, todayStatus } from '../state/mood';
-import { fullDayLabel, longDate, saludoHora, today } from '../state/date';
+import { fullDayLabel, longDate, saludoHora, toISODate, today } from '../state/date';
+import { readLastBackup, shouldRemindBackup } from '../state/backupReminder';
 import type { Screen } from '../types';
 
 type Props = { onNavigate: (s: Screen) => void };
@@ -16,6 +17,7 @@ type Props = { onNavigate: (s: Screen) => void };
 export function Arranque({ onNavigate }: Props) {
   const { state, activeContract, todayEntry } = useStore();
   const iso = today();
+  const [lastBackup] = useState(() => readLastBackup());
 
   const view = useMemo(() => {
     const coach = coachMessage(state, iso);
@@ -26,6 +28,9 @@ export function Arranque({ onNavigate }: Props) {
     return { coach, status, mood, streak, week };
   }, [state, activeContract, iso]);
 
+  const firstUse = state.profile ? toISODate(new Date(state.profile.onboardedAt)) : null;
+  const showBackupReminder = shouldRemindBackup(lastBackup, firstUse, iso);
+
   if (!activeContract) {
     return (
       <div className="t-empty">
@@ -35,6 +40,7 @@ export function Arranque({ onNavigate }: Props) {
           Sin compromisos no hay hábitos que sostener. Empieza con uno solo si prefieres.
         </p>
         <Button onClick={() => onNavigate('contrato')}>Ir al contrato</Button>
+        {showBackupReminder && <BackupReminder lastBackup={lastBackup} onNavigate={onNavigate} />}
         <style>{emptyCss}</style>
       </div>
     );
@@ -97,6 +103,8 @@ export function Arranque({ onNavigate }: Props) {
 
       <DayFact />
 
+      {showBackupReminder && <BackupReminder lastBackup={lastBackup} onNavigate={onNavigate} />}
+
       <p className="t-arranque__foot">
         La versión <em>mínima</em> también mantiene vivo el hábito. Un ladrillo hoy
         pesa más que un edificio imaginado mañana.
@@ -104,6 +112,27 @@ export function Arranque({ onNavigate }: Props) {
 
       <style>{css}</style>
     </section>
+  );
+}
+
+function BackupReminder({
+  lastBackup,
+  onNavigate,
+}: {
+  lastBackup: string | null;
+  onNavigate: (s: Screen) => void;
+}) {
+  return (
+    <div className="t-arranque__backup">
+      <p className="t-arranque__backup-text">
+        {lastBackup === null
+          ? 'Aún no has guardado ninguna copia de TITAN'
+          : 'Hace más de un mes que no guardas una copia de TITAN'}
+      </p>
+      <Button variant="quiet" onClick={() => onNavigate('datos')}>
+        Guardar ahora
+      </Button>
+    </div>
   );
 }
 
@@ -157,6 +186,12 @@ const css = `
   font-variation-settings: 'opsz' 144, 'SOFT' 100;
 }
 .t-arranque__foot em { color: var(--minimum); font-style: italic; }
+
+.t-arranque__backup {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 4px; color: var(--fg-2); font-size: 12px;
+}
+.t-arranque__backup-text { margin: 0; }
 
 @media (max-width: 440px) {
   .t-hero { flex-direction: column; align-items: center; text-align: center; }
