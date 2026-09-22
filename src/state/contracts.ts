@@ -43,6 +43,13 @@ export function currentCommitments(contract: WeeklyContract): Commitment[] {
   return contract.commitments.filter((c) => !c.removedOn);
 }
 
+// No se importa `uid` de './store' para evitar un import circular en tiempo
+// de ejecución (store.tsx ya importa de este módulo): se genera el id igual
+// que allí, con un sufijo de la fecha para dejar claro que es una re-alta.
+function freshId(id: string, todayISO: string): string {
+  return `${id}-${todayISO}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /**
  * Fusiona una edición del contrato de la semana con el guardado.
  * Si ya hay días evaluados (hoy > firma), lo nuevo cuenta desde hoy y lo
@@ -57,8 +64,17 @@ export function mergeCommitmentEdit(previous: WeeklyContract, next: Commitment[]
   for (const c of next) {
     const prev = prevById.get(c.id);
     const fields = { id: c.id, name: c.name, normal: c.normal, minimum: c.minimum, reason: c.reason };
-    if (prev && !prev.removedOn) out.push(prev.since ? { ...fields, since: prev.since } : fields);
-    else out.push(locked ? { ...fields, since: todayISO } : fields);
+    if (prev && prev.removedOn) {
+      // Re-alta de un compromiso ya quitado: el registro quitado no se toca
+      // (el pasado no cambia) y esto se añade como un compromiso nuevo.
+      out.push(prev);
+      const freshFields = { ...fields, id: freshId(c.id, todayISO) };
+      out.push(locked ? { ...freshFields, since: todayISO } : freshFields);
+    } else if (prev && !prev.removedOn) {
+      out.push(prev.since ? { ...fields, since: prev.since } : fields);
+    } else {
+      out.push(locked ? { ...fields, since: todayISO } : fields);
+    }
   }
 
   for (const p of previous.commitments) {

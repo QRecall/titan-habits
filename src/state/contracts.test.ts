@@ -129,4 +129,19 @@ describe('mergeCommitmentEdit', () => {
     const out = mergeCommitmentEdit(k, [{ ...c('a'), name: 'A2' }], '2026-09-24');
     expect(out).toEqual([{ ...c('a', { since: '2026-09-22' }), name: 'A2' }, c('z', { removedOn: '2026-09-22' })]);
   });
+  it('re-alta de un compromiso ya quitado: el registro quitado no cambia y se añade uno nuevo', () => {
+    const k = contractWith([c('a'), c('z', { removedOn: '2026-09-22' })]);
+    const out = mergeCommitmentEdit(k, [c('a'), c('z')], '2026-09-24');
+    // El registro quitado sigue intacto, con su removedOn.
+    const removed = out.find((x) => x.id === 'z' && x.removedOn);
+    expect(removed).toEqual(c('z', { removedOn: '2026-09-22' }));
+    // La re-alta es un compromiso nuevo: id distinto, since = hoy.
+    const readded = out.find((x) => x.name === 'X' && x.id !== 'a' && x.id !== 'z');
+    expect(readded).toBeDefined();
+    expect(readded?.since).toBe('2026-09-24');
+    expect(readded?.removedOn).toBeUndefined();
+    expect(readded?.id).not.toBe('z');
+    // Total: 'a' + el 'z' quitado original + la re-alta nueva.
+    expect(out).toHaveLength(3);
+  });
 });

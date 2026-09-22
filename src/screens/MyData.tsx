@@ -481,7 +481,7 @@ function BadgeControl() {
     return (
       <p className="t-data__hint">
         Número en el icono activo: muestra cuántos compromisos te quedan hoy. Se pone al día al
-        abrir la app y cada mañana con el aviso de las 8:00. Ahora mismo: {pending}{' '}
+        abrir la app y, si tienes activado el aviso de las 8:00, cada mañana. Ahora mismo: {pending}{' '}
         {pending === 1 ? 'pendiente' : 'pendientes'}
         {pending === 0 && ', así que no se muestra ningún número'}.
       </p>

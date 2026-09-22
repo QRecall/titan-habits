@@ -19,7 +19,7 @@ export type WeekStats = {
   minimumCount: number;
   missedCount: number;
   unmarkedCount: number;
-  /** 0..1 · (normal + minimum) / (evaluableDays × compromisos). */
+  /** 0..1 · (normal + minimum) / suma, por cada día evaluable, de los compromisos activos ese día. */
   percent: number;
   perCommitment: CommitmentSummary[];
 };

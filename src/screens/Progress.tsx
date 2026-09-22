@@ -108,7 +108,9 @@ export function Progress({ onNavigate }: Props) {
                   : status
                     ? `is-${status}`
                     : 'is-blank';
-                const title = status === 'normal' ? 'Normal' : status === 'minimum' ? 'Mínimo' : status === 'missed' ? 'Hoy no' : '';
+                const title = !evaluable
+                  ? ''
+                  : status === 'normal' ? 'Normal' : status === 'minimum' ? 'Mínimo' : status === 'missed' ? 'Hoy no' : '';
                 return (
                   <div key={iso} className={`t-prog__cell t-prog__cell--dot ${cls}`} role="cell" title={title}>
                     <span className="t-prog__pip" aria-hidden="true" />
