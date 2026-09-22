@@ -19,6 +19,9 @@ y widget.
 - Añadido el día D → cuenta desde D inclusive.
 - Quitado el día D → cuenta hasta D−1; desde D no.
 - El pasado nunca cambia al editar.
+- Excepción: si el día D el compromiso ya está marcado `missed` (fallado) y se quita ese mismo día
+  D, el fallo de D no se puede borrar quitándolo: cuenta hasta D inclusive y deja de contar desde
+  D+1 (`removedOn = D+1`), en vez de `removedOn = D`.
 
 ## Modelo
 
@@ -36,12 +39,17 @@ fecha ISO).
 - `isActiveOn(c, date)`: `(!since || date >= since) && (!removedOn || date < removedOn)`.
 - `activeCommitments(contract, date)`: los que cuentan ese día.
 - `currentCommitments(contract)`: los no quitados (para editar, prellenar y listar hoy).
-- `mergeCommitmentEdit(previous, next, todayISO)`: al guardar un contrato ya existente de la misma
-  semana. `locked = todayISO > previous.signedAt` (hay pasado evaluado):
+- `mergeCommitmentEdit(previous, next, todayISO, missedToday?)`: al guardar un contrato ya existente
+  de la misma semana. `missedToday` (por defecto vacío) trae los ids marcados `missed` hoy.
+  `locked = todayISO > previous.signedAt` (hay pasado evaluado):
   - Conservados: mantienen su `since`.
   - Nuevos: `since = todayISO` si `locked`; sin fecha si no.
-  - Quitados (activos antes, ausentes ahora): si `!locked` se eliminan; si se añadieron hoy
-    (`since >= todayISO`) se eliminan; si no, se guardan con `removedOn = todayISO`.
+  - Quitados (activos antes, ausentes ahora):
+    - Si está en `missedToday` y hoy es evaluable (`locked`, o `previous.signedAt === todayISO`
+      porque el contrato se firmó hoy): se conserva con `removedOn = todayISO + 1 día`, y su
+      `since` tal cual (aunque sea de hoy) — el fallo de hoy no se borra.
+    - Si no: si `!locked` se eliminan; si se añadieron hoy (`since >= todayISO`) se eliminan; si
+      no, se guardan con `removedOn = todayISO`.
   - Los ya quitados antes se conservan tal cual.
   - Orden: primero los de `next` en su orden, después los quitados.
 

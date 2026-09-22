@@ -65,13 +65,18 @@ export function reducer(state: AppState, action: Action): AppState {
       // progreso ya registrado sigue contando.
       const previous = state.contracts.find((c) => c.weekKey === action.contract.weekKey);
       const others = state.contracts.filter((c) => c.weekKey !== action.contract.weekKey);
+      const todayISO = today();
+      const todayEntry = state.days.find((d) => d.date === todayISO);
+      const missedToday = new Set(
+        (todayEntry?.marks ?? []).filter((m) => m.status === 'missed').map((m) => m.commitmentId)
+      );
       const contract: WeeklyContract = previous
         ? {
             ...action.contract,
             startDate: previous.startDate,
             signedAt: previous.signedAt,
             createdAt: previous.createdAt,
-            commitments: mergeCommitmentEdit(previous, action.contract.commitments, today()),
+            commitments: mergeCommitmentEdit(previous, action.contract.commitments, todayISO, missedToday),
           }
         : action.contract;
       return { ...state, contracts: sortContracts([...others, contract]) };

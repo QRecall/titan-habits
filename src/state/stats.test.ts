@@ -383,4 +383,28 @@ describe('compromisos activos por día · añadir y quitar a mitad de semana', (
     );
     expect(computeWeekStats(partial, c, '2026-09-22').percent).toBe(4 / 5);
   });
+
+  it('quitar un compromiso ya fallado hoy no borra el fallo (removedOn = mañana)', () => {
+    // a, b firmados el lunes; lunes y martes completos; el miércoles 'a' normal
+    // y 'b' fallado, y 'b' se quita ese mismo miércoles → removedOn = jueves.
+    const bRemoved: Commitment = { ...B, removedOn: '2026-09-24' };
+    const c = w39([A, bRemoved]);
+    const s = withContract(
+      [
+        dayFull('2026-09-21', ['a', 'b']),
+        dayFull('2026-09-22', ['a', 'b']),
+        {
+          date: '2026-09-23',
+          weekKey: WK,
+          marks: [
+            { commitmentId: 'a', status: 'normal' },
+            { commitmentId: 'b', status: 'missed' },
+          ],
+        },
+      ],
+      c
+    );
+    expect(computeStreakAcross(s, '2026-09-24')).toBe(0); // el miércoles cuenta como fallado
+    expect(computeWeekStats(s, c, '2026-09-23').daysHonored).toBe(2);
+  });
 });

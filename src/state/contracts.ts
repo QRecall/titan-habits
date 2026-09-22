@@ -43,6 +43,13 @@ export function currentCommitments(contract: WeeklyContract): Commitment[] {
   return contract.commitments.filter((c) => !c.removedOn);
 }
 
+// Día siguiente a `iso`, en formato YYYY-MM-DD.
+function addOneDay(iso: string): string {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
+}
+
 // No se importa `uid` de './store' para evitar un import circular en tiempo
 // de ejecución (store.tsx ya importa de este módulo): se genera el id igual
 // que allí, con un sufijo de la fecha para dejar claro que es una re-alta.
@@ -54,8 +61,19 @@ function freshId(id: string, todayISO: string): string {
  * Fusiona una edición del contrato de la semana con el guardado.
  * Si ya hay días evaluados (hoy > firma), lo nuevo cuenta desde hoy y lo
  * quitado se conserva con `removedOn = hoy`, para que el pasado no cambie.
+ * Excepción: si el compromiso que se quita ya está marcado `missed` (fallado)
+ * hoy —`missedToday`—, el fallo de hoy no se puede borrar: se conserva con
+ * `removedOn = mañana` (y su `since`, si lo tenía), de forma que hoy sigue
+ * contando como fallado y deja de contar a partir de mañana. Esto aplica
+ * también si el contrato se firmó hoy mismo (`signedAt === todayISO`), ya
+ * que hoy es evaluable; un contrato futuro no puede tener nada marcado hoy.
  */
-export function mergeCommitmentEdit(previous: WeeklyContract, next: Commitment[], todayISO: string): Commitment[] {
+export function mergeCommitmentEdit(
+  previous: WeeklyContract,
+  next: Commitment[],
+  todayISO: string,
+  missedToday: ReadonlySet<string> = new Set()
+): Commitment[] {
   const locked = todayISO > previous.signedAt;
   const prevById = new Map(previous.commitments.map((c) => [c.id, c]));
   const nextIds = new Set(next.map((c) => c.id));
@@ -81,6 +99,12 @@ export function mergeCommitmentEdit(previous: WeeklyContract, next: Commitment[]
     if (nextIds.has(p.id)) continue;
     if (p.removedOn) {
       out.push(p);
+      continue;
+    }
+    const evaluableToday = locked || previous.signedAt === todayISO;
+    if (evaluableToday && missedToday.has(p.id)) {
+      // Ya está fallado hoy: el fallo no se borra, deja de contar mañana.
+      out.push({ ...p, removedOn: addOneDay(todayISO) });
       continue;
     }
     if (!locked || (p.since && p.since >= todayISO)) continue;

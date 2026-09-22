@@ -144,4 +144,31 @@ describe('mergeCommitmentEdit', () => {
     // Total: 'a' + el 'z' quitado original + la re-alta nueva.
     expect(out).toHaveLength(3);
   });
+
+  describe('quitar un compromiso ya fallado hoy', () => {
+    it('bloqueado: b fallado hoy y quitado hoy → se conserva con removedOn = mañana', () => {
+      const out = mergeCommitmentEdit(prev, [c('a')], '2026-09-24', new Set(['b']));
+      const b = out.find((x) => x.id === 'b');
+      expect(b?.removedOn).toBe('2026-09-25');
+      expect(b && isActiveOn(b, '2026-09-24')).toBe(true);
+    });
+    it('b añadido hoy y fallado hoy, quitado hoy → se conserva con since = hoy y removedOn = mañana', () => {
+      const k = contractWith([c('a'), c('b', { since: '2026-09-24' })]);
+      const out = mergeCommitmentEdit(k, [c('a')], '2026-09-24', new Set(['b']));
+      const b = out.find((x) => x.id === 'b');
+      expect(b?.since).toBe('2026-09-24');
+      expect(b?.removedOn).toBe('2026-09-25');
+    });
+    it('contrato firmado hoy: b fallado hoy y quitado hoy → se conserva con removedOn = mañana', () => {
+      const k = contractWith([c('a'), c('b')], '2026-09-24');
+      const out = mergeCommitmentEdit(k, [c('a')], '2026-09-24', new Set(['b']));
+      const b = out.find((x) => x.id === 'b');
+      expect(b?.removedOn).toBe('2026-09-25');
+    });
+    it('sin marcar como fallado: comportamiento sin cambios (removedOn = hoy)', () => {
+      const out = mergeCommitmentEdit(prev, [c('a')], '2026-09-24');
+      const b = out.find((x) => x.id === 'b');
+      expect(b?.removedOn).toBe('2026-09-24');
+    });
+  });
 });
