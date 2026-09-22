@@ -52,7 +52,7 @@ export function Review({ onNavigate }: Props) {
         <p className="t-review__range">{rangeLabel}</p>
       </header>
 
-      {(tabs.length > 1 || older.length > 0) && (
+      {tabs.length > 0 && (tabs.length > 1 || older.length > 0) && (
         <div className="t-review__weeks" role="tablist" aria-label="Semana a revisar">
           {tabs.map((t) => (
             <button
