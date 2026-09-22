@@ -13,6 +13,8 @@ export type FragileResult = { commitment: Commitment; fails: number; days: numbe
  *    compromiso llega a fails/days >= 1/3.
  *  · Empate en proporción → gana el de más fallos; empate total → el
  *    primero en el orden del contrato.
+ *  · Los compromisos quitados (`removedOn`) no se eligen: no tiene sentido
+ *    aconsejar bajar el mínimo de algo que ya no está.
  */
 export function fragileCommitment(
   state: AppState,
@@ -38,6 +40,7 @@ export function fragileCommitment(
 
   let best: FragileResult | null = null;
   for (const c of contract.commitments) {
+    if (c.removedOn) continue; // quitado: no aconsejar bajar su mínimo
     const entry = tally.get(c.id);
     if (!entry || entry.days === 0) continue;
     const ratio = entry.fails / entry.days;

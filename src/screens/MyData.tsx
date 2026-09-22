@@ -25,7 +25,7 @@ import {
 import { defaultStorage, readRaw } from '../state/storage';
 import { markBackupDone } from '../state/backupReminder';
 import { buildForecast } from '../state/forecast';
-import { today } from '../state/date';
+import { today, toISODate } from '../state/date';
 import { widgetScript } from '../state/widget';
 import {
   APP_URL,
@@ -121,6 +121,10 @@ export function MyData({ onNavigate }: Props) {
   function confirmRestore() {
     if (pending.kind !== 'ready') return;
     restore(pending.backup.data);
+    const exportedAt = new Date(pending.backup.exportedAt);
+    if (!Number.isNaN(exportedAt.getTime())) {
+      markBackupDone(toISODate(exportedAt));
+    }
     cancel();
     setNotice('Copia restaurada. Tus datos actuales son los de la copia.');
   }

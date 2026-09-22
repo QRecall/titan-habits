@@ -371,6 +371,46 @@ describe('bestStreak', () => {
     };
     expect(bestStreak(s, '2026-09-08')).toBe(computeStreakAcross(s, '2026-09-08'));
   });
+
+  it('compromiso quitado a mitad de semana y sin marcar después no rompe la racha', () => {
+    const A: Commitment = { id: 'a', name: 'A', normal: 'n', minimum: 'm', reason: 'r' };
+    const B: Commitment = { id: 'b', name: 'B', normal: 'n', minimum: 'm', reason: 'r' };
+    const R: Commitment = { id: 'r', name: 'R', normal: 'n', minimum: 'm', reason: 'r', removedOn: '2026-09-23' };
+    const wk = weekKey(parseISODate('2026-09-21'));
+    const c: WeeklyContract = {
+      weekKey: wk,
+      startDate: '2026-09-21',
+      signedAt: '2026-09-21',
+      commitments: [A, B, R],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const days: DayEntry[] = [
+      {
+        date: '2026-09-21',
+        weekKey: wk,
+        marks: [
+          { commitmentId: 'a', status: 'normal' },
+          { commitmentId: 'b', status: 'normal' },
+          { commitmentId: 'r', status: 'normal' },
+        ],
+      },
+      {
+        date: '2026-09-22',
+        weekKey: wk,
+        marks: [
+          { commitmentId: 'a', status: 'normal' },
+          { commitmentId: 'b', status: 'normal' },
+          { commitmentId: 'r', status: 'normal' },
+        ],
+      },
+      // A partir de aquí `r` ya está quitado (removedOn) y se queda sin marcar.
+      { date: '2026-09-23', weekKey: wk, marks: [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'normal' }] },
+      { date: '2026-09-24', weekKey: wk, marks: [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'normal' }] },
+    ];
+    const s: AppState = { ...makeState(days), contracts: [c] };
+    expect(bestStreak(s, '2026-09-24')).toBe(4);
+    expect(bestStreak(s, '2026-09-24')).toBe(computeStreakAcross(s, '2026-09-24'));
+  });
 });
 
 describe('pendingToday', () => {

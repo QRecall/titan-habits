@@ -92,6 +92,21 @@ describe('fragileCommitment', () => {
     expect(fragileCommitment(s, c, '2026-09-26')).toEqual({ commitment: A, fails: 2, days: 6 });
   });
 
+  it('compromiso quitado (removedOn) no se elige aunque haya fallado mucho antes de quitarse', () => {
+    const removed: Commitment = { ...B, removedOn: '2026-09-24' };
+    const c = contract([A, removed]);
+    const s = state([
+      day('2026-09-21', [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'missed' }]),
+      day('2026-09-22', [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'missed' }]),
+      day('2026-09-23', [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'normal' }]),
+      day('2026-09-24', [{ commitmentId: 'a', status: 'normal' }]),
+      day('2026-09-25', [{ commitmentId: 'a', status: 'normal' }]),
+    ]);
+    // b: 2 fallos de sus 3 días activos = 2/3, superaría el umbral, pero está quitado → no se elige.
+    // a: 0 fallos de 5 días → no es frágil. Resultado: null.
+    expect(fragileCommitment(s, c, '2026-09-25')).toBeNull();
+  });
+
   it('empate total (misma proporción y mismos fallos): gana el primero en el orden del contrato', () => {
     const c = contract([A, B]);
     const s = state([

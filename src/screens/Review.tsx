@@ -52,7 +52,7 @@ export function Review({ onNavigate }: Props) {
         <p className="t-review__range">{rangeLabel}</p>
       </header>
 
-      {tabs.length > 1 && (
+      {(tabs.length > 1 || older.length > 0) && (
         <div className="t-review__weeks" role="tablist" aria-label="Semana a revisar">
           {tabs.map((t) => (
             <button
@@ -71,7 +71,7 @@ export function Review({ onNavigate }: Props) {
 
       {older.length > 0 && (
         <div className="t-review__older">
-          <label htmlFor="review-older-week" className="t-field__label">
+          <label htmlFor="review-older-week" className="t-review__older-label">
             Semanas anteriores
           </label>
           <select
@@ -231,10 +231,10 @@ const css = `
 .t-review__week.is-active { color: var(--gold); border-color: var(--gold); background: var(--gold-dim); }
 
 .t-review__older { display: flex; flex-direction: column; gap: 6px; }
-.t-field__label { font-size: 11px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--fg-2); }
+.t-review__older-label { font-size: 11px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--fg-2); }
 .t-review__select {
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
-  padding: 12px 14px; color: var(--fg-1); font-size: 15px; font-family: var(--font-body);
+  padding: 12px 14px; color: var(--fg-1); font-size: 16px; font-family: var(--font-body);
   color-scheme: dark; min-height: 44px; width: 100%;
 }
 .t-review__select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px var(--gold-dim); }
