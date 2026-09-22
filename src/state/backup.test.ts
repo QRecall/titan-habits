@@ -63,6 +63,35 @@ describe('createBackup / serializeBackup', () => {
   });
 });
 
+describe('parseCommitment · since y removedOn', () => {
+  it('ida y vuelta de un contrato con since y removedOn', () => {
+    const withDates: AppState = {
+      ...state,
+      contracts: [
+        {
+          ...state.contracts[0],
+          commitments: [
+            { ...state.contracts[0].commitments[0], since: '2026-09-02' },
+            { ...state.contracts[0].commitments[1], removedOn: '2026-09-05' },
+          ],
+        },
+      ],
+    };
+    const r = parseBackup(serializeBackup(createBackup(withDates, NOW)));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.backup.data).toEqual(withDates);
+  });
+
+  it('since mal formado se rechaza con la ruta del campo', () => {
+    const b = createBackup(state, NOW);
+    const broken = JSON.parse(JSON.stringify(b));
+    broken.data.contracts[0].commitments[0].since = '23/09/2026';
+    const r = parseBackup(JSON.stringify(broken));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('contracts[0].commitments[0].since');
+  });
+});
+
 describe('parseBackup · rechaza copias inválidas sin lanzar', () => {
   function fails(text: string, fragment: string) {
     const r = parseBackup(text);

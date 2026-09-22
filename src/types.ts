@@ -6,6 +6,10 @@ export type Commitment = {
   normal: string;
   minimum: string;
   reason: string;
+  /** Día (YYYY-MM-DD) en que se añadió, si fue después de firmar el contrato. Cuenta desde ese día. */
+  since?: string;
+  /** Día (YYYY-MM-DD) en que se quitó. Deja de contar desde ese día; los anteriores no cambian. */
+  removedOn?: string;
 };
 
 export type WeeklyContract = {

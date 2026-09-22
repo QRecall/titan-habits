@@ -114,6 +114,13 @@ function isoDate(obj: Record<string, unknown>, key: string, path: string): strin
   return v;
 }
 
+function optionalIsoDate(obj: Record<string, unknown>, key: string, path: string): string | undefined {
+  const v = optionalStr(obj, key, path);
+  if (v === undefined) return undefined;
+  if (!ISO_DATE.test(v)) fail(`${path}.${key}`, 'debe ser una fecha AAAA-MM-DD');
+  return v;
+}
+
 function list(v: unknown, path: string): unknown[] {
   if (!Array.isArray(v)) fail(path, 'debe ser una lista');
   return v;
@@ -136,13 +143,18 @@ function parseProfile(v: unknown, path: string): Profile | null {
 
 function parseCommitment(v: unknown, path: string): Commitment {
   const o = obj(v, path);
-  return {
+  const commitment: Commitment = {
     id: str(o, 'id', path),
     name: str(o, 'name', path),
     normal: str(o, 'normal', path),
     minimum: str(o, 'minimum', path),
     reason: str(o, 'reason', path),
   };
+  const since = optionalIsoDate(o, 'since', path);
+  if (since !== undefined) commitment.since = since;
+  const removedOn = optionalIsoDate(o, 'removedOn', path);
+  if (removedOn !== undefined) commitment.removedOn = removedOn;
+  return commitment;
 }
 
 function parseContract(v: unknown, path: string): WeeklyContract {

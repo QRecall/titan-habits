@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppState, DayEntry, WeeklyContract } from '../types';
 import { reducer } from './store';
 import { computeStreak, computeWeekStats } from './stats';
@@ -153,6 +153,34 @@ describe('RESTORE · sustituye todo el estado por la copia', () => {
     expect(next).toEqual(restored);
     expect(next.contracts).toHaveLength(1);
     expect(next.days).toHaveLength(1);
+  });
+});
+
+describe('SAVE_CONTRACT · editar a mitad de semana', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 23, 12));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('lo nuevo cuenta desde hoy y lo quitado se conserva con removedOn = hoy', () => {
+    const state = baseState(); // original firmado el 2026-08-31, con a,b
+    const edited: WeeklyContract = {
+      ...original,
+      signedAt: '2026-09-23',
+      createdAt: '2026-09-23T12:00:00.000Z',
+      commitments: [A, { ...A, id: 'n' }],
+    };
+
+    const next = reducer(state, { type: 'SAVE_CONTRACT', contract: edited });
+
+    expect(next.contracts).toHaveLength(1);
+    const saved = next.contracts[0];
+    expect(saved.signedAt).toBe('2026-08-31');
+    expect(saved.commitments.find((c) => c.id === 'n')?.since).toBe('2026-09-23');
+    expect(saved.commitments.find((c) => c.id === 'b')?.removedOn).toBe('2026-09-23');
   });
 });
 

@@ -23,6 +23,7 @@ import { defaultStorage, emptyState, readStoredState, writeStoredState } from '.
 import {
   contractForWeek,
   latestContractBefore,
+  mergeCommitmentEdit,
   newContractForWeekStarting,
   nextWeekStart,
   sortContracts,
@@ -70,6 +71,7 @@ export function reducer(state: AppState, action: Action): AppState {
             startDate: previous.startDate,
             signedAt: previous.signedAt,
             createdAt: previous.createdAt,
+            commitments: mergeCommitmentEdit(previous, action.contract.commitments, today()),
           }
         : action.contract;
       return { ...state, contracts: sortContracts([...others, contract]) };
