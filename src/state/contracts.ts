@@ -18,6 +18,15 @@ export function latestContractBefore(contracts: WeeklyContract[], key: string): 
   return earlier.length > 0 ? earlier[earlier.length - 1] : null;
 }
 
+/** Contratos anteriores a la semana `key` (excluida, junto con las posteriores), del más reciente al más antiguo. */
+export function contractsBefore(contracts: WeeklyContract[], key: string): WeeklyContract[] {
+  const target = contracts.find((c) => c.weekKey === key);
+  const limit = target ? target.startDate : startOfWeekKey(key);
+  return sortContracts(contracts)
+    .filter((c) => c.startDate < limit)
+    .reverse();
+}
+
 // "2026-W37" → lunes ISO de esa semana, como YYYY-MM-DD.
 function startOfWeekKey(key: string): string {
   const [y, w] = key.split('-W').map(Number);

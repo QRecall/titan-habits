@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { AppState, Commitment, DayEntry, WeeklyContract } from '../types';
-import { computeStreak, computeStreakAcross, computeWeekStats, evaluableDates, pendingToday } from './stats';
+import {
+  bestStreak,
+  computeStreak,
+  computeStreakAcross,
+  computeWeekStats,
+  evaluableDates,
+  pendingToday,
+} from './stats';
 import { parseISODate, toISODate, weekKey } from './date';
 
 function makeContract(signedAt: string, startDate = '2026-08-31'): WeeklyContract {
@@ -268,6 +275,101 @@ describe('computeStreakAcross · racha continua entre semanas', () => {
       [w36]
     );
     expect(computeStreakAcross(s, '2026-09-08')).toBe(0);
+  });
+});
+
+describe('bestStreak', () => {
+  const full = ['a', 'b', 'c'].map((id) => ({ commitmentId: id, status: 'normal' as const }));
+
+  it('sin contratos devuelve 0', () => {
+    expect(bestStreak(makeState([]), '2026-09-22')).toBe(0);
+  });
+
+  it('una racha antigua más larga que la actual: el récord recuerda la más larga, no la actual', () => {
+    const c = makeContract('2026-08-31', '2026-08-31');
+    const days: DayEntry[] = [
+      ...['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'].map((date) => ({
+        date,
+        weekKey: '2026-W36',
+        marks: full,
+      })),
+      { date: '2026-09-05', weekKey: '2026-W36', marks: [{ commitmentId: 'a', status: 'missed' as const }, ...full.slice(1)] },
+      { date: '2026-09-06', weekKey: '2026-W36', marks: full },
+    ];
+    const s: AppState = { ...makeState(days), contracts: [c] };
+    expect(computeStreakAcross(s, '2026-09-06')).toBe(1);
+    expect(bestStreak(s, '2026-09-06')).toBe(5);
+  });
+
+  it('cruce de semana: la racha sigue entre contratos consecutivos', () => {
+    const w36 = makeContract('2026-08-31');
+    const w37: WeeklyContract = { ...makeContract('2026-09-07', '2026-09-07'), weekKey: '2026-W37' };
+    const s: AppState = {
+      ...makeState([
+        { date: '2026-09-05', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-06', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-07', weekKey: '2026-W37', marks: full },
+        { date: '2026-09-08', weekKey: '2026-W37', marks: full },
+      ]),
+      contracts: [w36, w37],
+    };
+    expect(bestStreak(s, '2026-09-08')).toBe(4);
+  });
+
+  it('hoy incompleto (sin marcar) no rompe ni suma, pero conserva el récord previo', () => {
+    const w36 = makeContract('2026-08-31');
+    const w37: WeeklyContract = { ...makeContract('2026-09-07', '2026-09-07'), weekKey: '2026-W37' };
+    const s: AppState = {
+      ...makeState(
+        ['2026-09-04', '2026-09-05', '2026-09-06'].map((date) => ({ date, weekKey: '2026-W36', marks: full }))
+      ),
+      contracts: [w36, w37],
+    };
+    expect(bestStreak(s, '2026-09-07')).toBe(3);
+  });
+
+  it('compromiso añadido a mitad de semana: cuenta igual que la racha actual', () => {
+    const n: Commitment = { id: 'n', name: 'N', normal: 'n', minimum: 'm', reason: 'r', since: '2026-09-23' };
+    const A: Commitment = { id: 'a', name: 'A', normal: 'n', minimum: 'm', reason: 'r' };
+    const B: Commitment = { id: 'b', name: 'B', normal: 'n', minimum: 'm', reason: 'r' };
+    const wk = weekKey(parseISODate('2026-09-21'));
+    const c: WeeklyContract = {
+      weekKey: wk,
+      startDate: '2026-09-21',
+      signedAt: '2026-09-21',
+      commitments: [A, B, n],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const days: DayEntry[] = [
+      { date: '2026-09-21', weekKey: wk, marks: [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'normal' }] },
+      { date: '2026-09-22', weekKey: wk, marks: [{ commitmentId: 'a', status: 'normal' }, { commitmentId: 'b', status: 'normal' }] },
+      {
+        date: '2026-09-23',
+        weekKey: wk,
+        marks: [
+          { commitmentId: 'a', status: 'normal' },
+          { commitmentId: 'b', status: 'normal' },
+          { commitmentId: 'n', status: 'normal' },
+        ],
+      },
+    ];
+    const s: AppState = { ...makeState(days), contracts: [c] };
+    expect(bestStreak(s, '2026-09-23')).toBe(3);
+  });
+
+  it('coincide con computeStreakAcross cuando la racha actual es la mejor', () => {
+    const w36 = makeContract('2026-08-31');
+    const w37: WeeklyContract = { ...makeContract('2026-09-07', '2026-09-07'), weekKey: '2026-W37' };
+    const s: AppState = {
+      ...makeState([
+        { date: '2026-09-05', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-06', weekKey: '2026-W36', marks: full },
+        { date: '2026-09-07', weekKey: '2026-W37', marks: full },
+        { date: '2026-09-08', weekKey: '2026-W37', marks: full },
+      ]),
+      contracts: [w36, w37],
+    };
+    expect(bestStreak(s, '2026-09-08')).toBe(computeStreakAcross(s, '2026-09-08'));
   });
 });
 

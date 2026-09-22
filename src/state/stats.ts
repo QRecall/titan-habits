@@ -34,7 +34,7 @@ export function evaluableDates(
   );
 }
 
-function statusOn(
+export function statusOn(
   state: AppState,
   date: string,
   commitmentId: string
@@ -208,6 +208,69 @@ export function computeStreakAcross(state: AppState, todayISO: string = today())
   }
 
   return streak;
+}
+
+function nextISODate(iso: string): string {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
+}
+
+/**
+ * Racha máxima histórica de días consecutivos completos, con las mismas
+ * reglas que `computeStreakAcross`: recorre día a día desde la firma más
+ * antigua de cualquier contrato hasta hoy; un día sin contrato, sin
+ * compromisos activos, con `missed` o pasado incompleto corta la racha en
+ * curso (sin registrar ninguna); hoy incompleto sin `missed` no corta ni
+ * suma. Devuelve el máximo alcanzado; nunca menor que la racha actual.
+ */
+export function bestStreak(state: AppState, todayISO: string = today()): number {
+  if (state.contracts.length === 0) return 0;
+
+  const start = state.contracts.reduce(
+    (min, c) => (c.signedAt < min ? c.signedAt : min),
+    state.contracts[0].signedAt
+  );
+  if (start > todayISO) return 0;
+
+  let cursor = start;
+  let running = 0;
+  let max = 0;
+
+  while (cursor <= todayISO) {
+    const contract = contractForWeek(state.contracts, weekKey(parseISODate(cursor)));
+    const active = contract && cursor >= contract.signedAt ? activeCommitments(contract, cursor) : [];
+
+    if (active.length === 0) {
+      running = 0;
+    } else {
+      let allDone = true;
+      let anyFailed = false;
+      for (const c of active) {
+        const s = statusOn(state, cursor, c.id);
+        if (s === 'missed') {
+          anyFailed = true;
+          allDone = false;
+        } else if (s !== 'normal' && s !== 'minimum') {
+          allDone = false;
+        }
+      }
+
+      if (anyFailed) {
+        running = 0;
+      } else if (allDone) {
+        running++;
+        if (running > max) max = running;
+      } else if (cursor !== todayISO) {
+        running = 0;
+      }
+      // Si es hoy y está incompleto sin fallo: no se toca `running`.
+    }
+
+    cursor = nextISODate(cursor);
+  }
+
+  return max;
 }
 
 /** Compromisos de hoy todavía sin marcar (0 si no hay contrato esta semana). */

@@ -3,6 +3,7 @@ import type { Commitment, WeeklyContract } from '../types';
 import {
   activeCommitments,
   contractForWeek,
+  contractsBefore,
   currentCommitments,
   isActiveOn,
   latestContractBefore,
@@ -48,6 +49,32 @@ describe('latestContractBefore', () => {
   it('ignora la propia semana y las posteriores', () => {
     expect(latestContractBefore([w36, w37], '2026-W36')).toBeNull();
     expect(latestContractBefore([w37], '2026-W36')).toBeNull();
+  });
+});
+
+describe('contractsBefore', () => {
+  it('devuelve los contratos anteriores a la semana dada, del más reciente al más antiguo', () => {
+    expect(contractsBefore([w35, w36, w37], '2026-W37').map((c) => c.weekKey)).toEqual([
+      '2026-W36',
+      '2026-W35',
+    ]);
+  });
+
+  it('excluye la propia semana dada y las posteriores', () => {
+    expect(contractsBefore([w35, w36, w37], '2026-W36').map((c) => c.weekKey)).toEqual(['2026-W35']);
+    expect(contractsBefore([w36, w37], '2026-W35').map((c) => c.weekKey)).toEqual([]);
+  });
+
+  it('funciona con una semana futura sin contrato propio', () => {
+    expect(contractsBefore([w35, w36, w37], '2026-W38').map((c) => c.weekKey)).toEqual([
+      '2026-W37',
+      '2026-W36',
+      '2026-W35',
+    ]);
+  });
+
+  it('sin contratos devuelve una lista vacía', () => {
+    expect(contractsBefore([], '2026-W36')).toEqual([]);
   });
 });
 
