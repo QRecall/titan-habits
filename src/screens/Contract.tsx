@@ -3,7 +3,7 @@ import { Button } from '../components/Button';
 import { TextField, TextAreaField } from '../components/Field';
 import { useStore, type ContractTarget } from '../state/store';
 import { startOfISOWeek, toISODate, weekRangeLabel } from '../state/date';
-import { nextWeekStart } from '../state/contracts';
+import { currentCommitments, nextWeekStart } from '../state/contracts';
 import {
   MAX_COMMITMENTS,
   draftsToCommitments,
@@ -28,9 +28,10 @@ export function Contract({ target = 'current', onSaved }: Props) {
       ? (activeContract ?? previousContract)
       : previousContract;
 
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
-    toDrafts((existing ?? prefill)?.commitments ?? [])
-  );
+  const [drafts, setDrafts] = useState<Draft[]>(() => {
+    const source = existing ?? prefill;
+    return toDrafts(source ? currentCommitments(source) : []);
+  });
   const [fromScratch, setFromScratch] = useState(false);
 
   const weekStart = target === 'next' ? nextWeekStart(new Date()) : toISODate(startOfISOWeek(new Date()));

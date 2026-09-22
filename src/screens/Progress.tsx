@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { ProgressRing } from '../components/ProgressRing';
 import { Button } from '../components/Button';
 import { MonthChart } from '../components/MonthChart';
+import { isActiveOn } from '../state/contracts';
 import { computeStreakAcross, computeWeekStats } from '../state/stats';
 import { daysInWeek, shortDayLabel, today } from '../state/date';
 import type { CommitmentStatus, Screen } from '../types';
@@ -93,9 +94,13 @@ export function Progress({ onNavigate }: Props) {
           </div>
           {activeContract.commitments.map((c) => (
             <div key={c.id} className="t-prog__row" role="row">
-              <div className="t-prog__cell t-prog__cell--label" role="rowheader">{c.name}</div>
+              <div className="t-prog__cell t-prog__cell--label" role="rowheader">
+                {c.name}
+                {c.removedOn && <span className="t-prog__removed"> · quitado</span>}
+              </div>
               {weekDays.map((iso) => {
-                const evaluable = iso >= activeContract.signedAt && iso <= todayISO;
+                const evaluable =
+                  iso >= activeContract.signedAt && iso <= todayISO && isActiveOn(c, iso);
                 const day = state.days.find((d) => d.date === iso);
                 const status = (day?.marks.find((m) => m.commitmentId === c.id)?.status ?? null) as CommitmentStatus;
                 const cls = !evaluable
@@ -183,6 +188,7 @@ const css = `
 .t-prog__cell--label {
   font-size: 12px; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.t-prog__removed { color: var(--fg-3); }
 .t-prog__cell--dot {
   aspect-ratio: 1;
   border-radius: 8px;

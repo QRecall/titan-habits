@@ -119,7 +119,10 @@ function ReviewForm({ contract }: { contract: WeeklyContract }) {
         <ul className="t-review__list">
           {summary.map(({ c, normal, minimum, missed, blank }) => (
             <li key={c.id} className="t-review__item">
-              <div className="t-review__name">{c.name}</div>
+              <div className="t-review__name">
+                {c.name}
+                {c.removedOn && <span className="t-review__removed"> · quitado</span>}
+              </div>
               <div className="t-review__stats">
                 <span className="t-review__stat t-review__stat--normal">{normal} <em>normal</em></span>
                 <span className="t-review__stat t-review__stat--min">{minimum} <em>mínimo</em></span>
@@ -191,6 +194,7 @@ const css = `
   padding: 12px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
 }
 .t-review__name { font-family: var(--font-display); font-size: 18px; color: var(--fg-1); }
+.t-review__removed { font-family: var(--font-body); font-size: 13px; color: var(--fg-3); }
 .t-review__stats { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: var(--fg-2); }
 .t-review__stat em { font-style: normal; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-2); margin-left: 3px; }
 .t-review__stat--normal { color: var(--gold); }

@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Mascot } from '../components/Mascot';
 import { DayFact } from '../components/DayFact';
 import { coachMessage } from '../state/coach';
+import { activeCommitments } from '../state/contracts';
 import { computeStreakAcross, computeWeekStats } from '../state/stats';
 import { flameLevel, heatRatio, moodFor, todayStatus } from '../state/mood';
 import { fullDayLabel, longDate, saludoHora, today } from '../state/date';
@@ -88,7 +89,7 @@ export function Arranque({ onNavigate }: Props) {
       </blockquote>
 
       <div className="t-arranque__list">
-        {activeContract.commitments.map((c) => {
+        {activeCommitments(activeContract, iso).map((c) => {
           const mark = todayEntry?.marks.find((m) => m.commitmentId === c.id);
           return <CommitmentCard key={c.id} commitment={c} mark={mark} />;
         })}
