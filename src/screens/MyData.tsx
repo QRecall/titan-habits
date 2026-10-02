@@ -1,0 +1,608 @@
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { Button } from '../components/Button';
+import { useStore } from '../state/store';
+import {
+  badgeStatus,
+  canPromptInstall,
+  enableBadge,
+  isIOS,
+  isStandalone,
+  onInstallChange,
+  promptInstall,
+  updateAppBadge,
+} from '../pwa';
+import { pendingToday } from '../state/stats';
+import { buildReminderICS, reminderFilename } from '../state/reminder';
+import {
+  backupFilename,
+  createBackup,
+  parseBackup,
+  serializeBackup,
+  summarizeBackup,
+  type Backup,
+  type BackupSummary,
+} from '../state/backup';
+import { defaultStorage, readRaw } from '../state/storage';
+import { markBackupDone } from '../state/backupReminder';
+import { buildForecast } from '../state/forecast';
+import { today, toISODate } from '../state/date';
+import { widgetScript } from '../state/widget';
+import {
+  APP_URL,
+  WORKER_URL,
+  enablePush,
+  pushId,
+  pushStatus,
+  sendTestPush,
+  type PushStatus,
+} from '../push';
+import type { Screen } from '../types';
+
+type Props = { onNavigate: (s: Screen) => void };
+
+type Pending =
+  | { kind: 'none' }
+  | { kind: 'invalid'; fileName: string; error: string }
+  | { kind: 'ready'; fileName: string; backup: Backup; summary: BackupSummary };
+
+function downloadText(filename: string, text: string, type = 'application/json') {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function formatExportedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' });
+}
+
+export function MyData({ onNavigate }: Props) {
+  const { state, restore, storage } = useStore();
+  const [pending, setPending] = useState<Pending>({ kind: 'none' });
+  const [notice, setNotice] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const current = summarizeBackup(createBackup(state));
+  const origin = typeof location !== 'undefined' ? location.origin : '';
+
+  function downloadCurrent() {
+    const now = new Date();
+    downloadText(backupFilename(now), serializeBackup(createBackup(state, now)));
+    markBackupDone(today());
+    setNotice('Copia descargada. Guárdala en un sitio seguro.');
+  }
+
+  function downloadUnreadable() {
+    if (!storage.preservedKey) return;
+    const raw = readRaw(defaultStorage(), storage.preservedKey);
+    if (raw === null) {
+      setNotice('No se pudo leer el contenido conservado.');
+      return;
+    }
+    downloadText(`${storage.preservedKey}.txt`, raw, 'text/plain');
+  }
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNotice(null);
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      setPending({ kind: 'invalid', fileName: file.name, error: 'No se pudo leer el archivo.' });
+      return;
+    }
+    const result = parseBackup(text);
+    if (!result.ok) {
+      setPending({ kind: 'invalid', fileName: file.name, error: result.error });
+    } else {
+      setPending({
+        kind: 'ready',
+        fileName: file.name,
+        backup: result.backup,
+        summary: summarizeBackup(result.backup),
+      });
+    }
+  }
+
+  function cancel() {
+    setPending({ kind: 'none' });
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function confirmRestore() {
+    if (pending.kind !== 'ready') return;
+    restore(pending.backup.data);
+    const exportedAt = new Date(pending.backup.exportedAt);
+    if (!Number.isNaN(exportedAt.getTime())) {
+      markBackupDone(toISODate(exportedAt));
+    }
+    cancel();
+    setNotice('Copia restaurada. Tus datos actuales son los de la copia.');
+  }
+
+  return (
+    <section className="t-data">
+      <header className="t-data__head">
+        <p className="eyebrow eyebrow--gold">Mis datos</p>
+        <h1 className="display t-data__title">Tus datos, en tus manos.</h1>
+        <p className="t-data__lead">
+          TITAN guarda todo sólo en este navegador y en esta dirección
+          {origin && <> (<code className="t-data__origin">{origin}</code>)</>}. Si cambias de
+          navegador, dispositivo o dirección, no verás estos datos. Descarga una copia de vez en
+          cuando.
+        </p>
+      </header>
+
+      {storage.loadError && (
+        <div className="t-data__alert" role="alert">
+          <p className="t-data__alert-title">Aviso al arrancar</p>
+          <p>{storage.loadError}</p>
+          {storage.preservedKey ? (
+            <>
+              <p>
+                El contenido original se ha conservado sin cambios bajo la clave{' '}
+                <code>{storage.preservedKey}</code>.{' '}
+                {storage.untouched
+                  ? 'Nada se sobrescribirá hasta que hagas un cambio en la app.'
+                  : 'Los datos actuales ya se han guardado de nuevo; esa copia sigue conservada.'}
+              </p>
+              <Button variant="ghost" onClick={downloadUnreadable}>
+                Descargar el contenido ilegible
+              </Button>
+            </>
+          ) : (
+            <p>No se pudo conservar una copia del contenido original.</p>
+          )}
+        </div>
+      )}
+
+      {storage.lastSaveFailed && (
+        <div className="t-data__alert" role="alert">
+          <p className="t-data__alert-title">El último guardado falló</p>
+          <p>
+            El navegador rechazó guardar los cambios. Descarga una copia ahora para no perderlos.
+          </p>
+        </div>
+      )}
+
+      <InstallPanel />
+
+      <PushPanel />
+
+      <ReminderPanel onNotice={setNotice} />
+
+      <div className="t-data__panel">
+        <p className="eyebrow">Descargar copia</p>
+        <SummaryList summary={current} showExportedAt={false} />
+        <Button full onClick={downloadCurrent}>
+          Descargar copia
+        </Button>
+        <p className="t-data__hint">
+          Archivo JSON con tu perfil, contratos, registros diarios y revisiones.
+        </p>
+      </div>
+
+      <div className="t-data__panel">
+        <p className="eyebrow">Restaurar copia</p>
+        <p className="t-data__hint">
+          Elige un archivo descargado desde TITAN. Antes de tocar nada se comprueba que sea válido y
+          se te pedirá confirmación.
+        </p>
+        <label className="t-data__file">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={onFile}
+            className="visually-hidden"
+          />
+          <span className="t-btn t-btn--ghost t-btn--full" aria-hidden="true">
+            Elegir archivo de copia
+          </span>
+        </label>
+
+        {pending.kind === 'invalid' && (
+          <div className="t-data__alert" role="alert">
+            <p className="t-data__alert-title">Copia no válida</p>
+            <p>
+              <strong>{pending.fileName}</strong>: {pending.error}
+            </p>
+            <p>Tus datos actuales no se han modificado.</p>
+            <Button variant="quiet" onClick={cancel}>
+              Cerrar
+            </Button>
+          </div>
+        )}
+
+        {pending.kind === 'ready' && (
+          <div className="t-data__confirm" role="region" aria-label="Confirmar restauración">
+            <p className="t-data__alert-title">Copia válida · {pending.fileName}</p>
+            <SummaryList summary={pending.summary} />
+            <p className="t-data__warning">
+              Al restaurar se <strong>reemplazarán todos los datos actuales</strong> de este
+              navegador por los de la copia. Esta acción no se puede deshacer, salvo que descargues
+              antes la copia actual.
+            </p>
+            <div className="t-data__actions">
+              <Button full variant="ghost" onClick={downloadCurrent}>
+                Descargar primero la copia actual
+              </Button>
+              <Button full variant="danger" onClick={confirmRestore}>
+                Restaurar y reemplazar mis datos
+              </Button>
+              <Button full variant="quiet" onClick={cancel}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {notice && (
+        <p className="t-data__notice" role="status">
+          {notice}
+        </p>
+      )}
+
+      <div className="t-data__back">
+        <Button variant="quiet" onClick={() => onNavigate('arranque')}>
+          Volver
+        </Button>
+      </div>
+
+      <style>{css}</style>
+    </section>
+  );
+}
+
+function PushPanel() {
+  const { state } = useStore();
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void pushStatus().then(setStatus);
+  }, []);
+
+  async function activate() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const next = await enablePush(buildForecast(state, today()));
+      setStatus(next);
+      setMsg(
+        next === 'on'
+          ? 'Aviso activado. Prueba el botón de aviso de prueba para comprobarlo.'
+          : next === 'denied'
+            ? 'Permiso denegado. Actívalo en Ajustes del iPhone, en la app TITAN.'
+            : 'No se activó: hace falta aceptar el permiso de notificaciones.'
+      );
+    } catch (e) {
+      setMsg(`No se pudo activar: ${(e as Error).message}. Comprueba la conexión y vuelve a intentarlo.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function test() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await sendTestPush();
+      if (r.ok) setMsg('Aviso enviado. Debería llegarte en unos segundos.');
+      else if (r.status === 409 || r.status === 404 || r.status === 410) {
+        setStatus('off');
+        setMsg('La suscripción ya no vale. Vuelve a activar el aviso.');
+      } else setMsg(`El servicio de avisos respondió ${r.status}.`);
+    } catch (e) {
+      setMsg(`No se pudo enviar: ${(e as Error).message}.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyWidget() {
+    const id = pushId();
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(widgetScript(WORKER_URL, id, APP_URL));
+      setMsg('Script copiado. Pégalo en un script nuevo de Scriptable.');
+    } catch {
+      setMsg('No se pudo copiar el script.');
+    }
+  }
+
+  return (
+    <div className="t-data__panel">
+      <p className="eyebrow">Aviso de las 8:00 y widget</p>
+      {status === 'unsupported' ? (
+        <p className="t-data__hint">
+          Para recibir el aviso, TITAN tiene que estar instalada en la pantalla de inicio y abierta
+          desde su icono.
+        </p>
+      ) : status === 'denied' ? (
+        <p className="t-data__hint">
+          El permiso de notificaciones está denegado. Actívalo en Ajustes del iPhone, en la app
+          TITAN, y vuelve aquí.
+        </p>
+      ) : status === 'on' ? (
+        <>
+          <p className="t-data__hint">
+            Cada día a las 8:00 te llega un aviso con tu racha y los compromisos del día, y el
+            número del icono se pone al día. Solo sale del móvil la racha y el número de
+            pendientes de cada día.
+          </p>
+          <div className="t-data__actions">
+            <Button full variant="ghost" onClick={() => void test()} disabled={busy}>
+              Enviar aviso de prueba
+            </Button>
+            <Button full variant="ghost" onClick={() => void copyWidget()} disabled={busy}>
+              Copiar script del widget
+            </Button>
+          </div>
+          <ol className="t-data__steps">
+            <li>Instala Scriptable desde la App Store.</li>
+            <li>En Scriptable pulsa +, pega el script y llámalo «TITAN».</li>
+            <li>
+              En la pantalla de inicio mantén pulsado, pulsa +, elige Scriptable y el widget
+              pequeño. Tócalo y en «Script» elige TITAN.
+            </li>
+          </ol>
+        </>
+      ) : status === 'off' ? (
+        <>
+          <p className="t-data__hint">
+            Cada día a las 8:00 un aviso con tu racha y los compromisos del día, y el número del
+            icono al día aunque no abras la app. Para eso sale del móvil solo la racha y el número
+            de pendientes de cada día, nunca los nombres ni las notas.
+          </p>
+          <Button full variant="ghost" onClick={() => void activate()} disabled={busy}>
+            Activar aviso de las 8:00
+          </Button>
+        </>
+      ) : null}
+      {msg && (
+        <p className="t-data__hint" role="status">
+          {msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ReminderPanel({ onNotice }: { onNotice: (n: string) => void }) {
+  const [time, setTime] = useState('21:00');
+
+  function download() {
+    const [h, m] = time.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return;
+    downloadText(reminderFilename(h, m), buildReminderICS({ hour: h, minute: m }), 'text/calendar');
+    onNotice('Recordatorio descargado. Ábrelo y acepta añadirlo a tu calendario.');
+  }
+
+  return (
+    <div className="t-data__panel">
+      <p className="eyebrow">Recordatorio diario</p>
+      <p className="t-data__hint">
+        Si quieres otro recordatorio además del aviso de las 8:00, tu calendario puede dártelo.
+        Elige una hora y descarga un recordatorio que se repite cada día; al abrirlo, el móvil te
+        propondrá añadirlo.
+      </p>
+      <div className="t-data__time">
+        <label htmlFor="reminder-time" className="t-field__label">Hora del aviso</label>
+        <input
+          id="reminder-time"
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="t-data__time-input"
+          required
+        />
+      </div>
+      <Button full variant="ghost" onClick={download} disabled={!time}>
+        Descargar recordatorio de calendario
+      </Button>
+      <p className="t-data__hint">
+        Para cambiar la hora, borra el evento «TITAN · marca tus compromisos» del calendario y
+        descarga otro.
+      </p>
+    </div>
+  );
+}
+
+function InstallPanel() {
+  const [, force] = useState(0);
+  useEffect(() => onInstallChange(() => force((n) => n + 1)), []);
+
+  if (isStandalone()) {
+    return (
+      <div className="t-data__panel">
+        <p className="eyebrow">Instalada en este dispositivo</p>
+        <p className="t-data__hint">TITAN se abre desde su icono.</p>
+        <BadgeControl />
+      </div>
+    );
+  }
+
+  return (
+    <div className="t-data__panel">
+      <p className="eyebrow">Instalar en el móvil</p>
+      <p className="t-data__hint">
+        Instalada, TITAN se abre a pantalla completa desde un icono, funciona sin conexión y
+        muestra en el icono cuántos compromisos te quedan hoy.
+      </p>
+      {canPromptInstall() ? (
+        <Button full variant="ghost" onClick={() => void promptInstall()}>
+          Instalar TITAN
+        </Button>
+      ) : isIOS() ? (
+        <ol className="t-data__steps">
+          <li>Abre esta página en Safari.</li>
+          <li>Pulsa el botón Compartir (el cuadrado con la flecha).</li>
+          <li>Elige «Añadir a pantalla de inicio» y confirma.</li>
+        </ol>
+      ) : (
+        <ol className="t-data__steps">
+          <li>Abre el menú del navegador (⋮ o ⋯).</li>
+          <li>Elige «Instalar aplicación» o «Añadir a pantalla de inicio».</li>
+        </ol>
+      )}
+      <p className="t-data__hint">
+        Los datos de la app instalada y los del navegador pueden ser almacenes distintos. Si ya
+        tienes datos aquí, descarga una copia y restáurala desde la app instalada.
+      </p>
+    </div>
+  );
+}
+
+function BadgeControl() {
+  const { state } = useStore();
+  const [status, setStatus] = useState(badgeStatus);
+  const pending = pendingToday(state);
+
+  async function enable() {
+    const next = await enableBadge();
+    setStatus(next);
+    if (next === 'ready') await updateAppBadge(pending);
+  }
+
+  if (status === 'unsupported') {
+    return (
+      <p className="t-data__hint">
+        Este navegador no muestra números sobre el icono. Chrome en Android no lo permite; en
+        iPhone funciona si la app se instaló desde Safari.
+      </p>
+    );
+  }
+  if (status === 'ready') {
+    return (
+      <p className="t-data__hint">
+        Número en el icono activo: muestra cuántos compromisos te quedan hoy. Se pone al día al
+        abrir la app y, si tienes activado el aviso de las 8:00, cada mañana. Ahora mismo: {pending}{' '}
+        {pending === 1 ? 'pendiente' : 'pendientes'}
+        {pending === 0 && ', así que no se muestra ningún número'}.
+      </p>
+    );
+  }
+  if (status === 'denied') {
+    return (
+      <p className="t-data__hint">
+        El número en el icono necesita el permiso de notificaciones y está denegado. Actívalo en
+        Ajustes del iPhone, en la app TITAN, y vuelve aquí.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="t-data__hint">
+        En iPhone, el número sobre el icono necesita el permiso de notificaciones. No se envía
+        ningún aviso: sólo se usa para pintar el número.
+      </p>
+      <Button full variant="ghost" onClick={() => void enable()}>
+        Activar número en el icono
+      </Button>
+    </>
+  );
+}
+
+function SummaryList({
+  summary,
+  showExportedAt = true,
+}: {
+  summary: BackupSummary;
+  showExportedAt?: boolean;
+}) {
+  return (
+    <dl className="t-data__summary">
+      <div>
+        <dt>Perfil</dt>
+        <dd>{summary.profileName ?? 'Sin perfil'}</dd>
+      </div>
+      <div>
+        <dt>Contratos</dt>
+        <dd>
+          {summary.contracts}
+          {summary.weeks.length > 0 && (
+            <span className="t-data__weeks"> · {summary.weeks.join(', ')}</span>
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt>Días con registro</dt>
+        <dd>
+          {summary.days} · {summary.marks} marcas · {summary.notes} notas · {summary.facts} hechos
+        </dd>
+      </div>
+      <div>
+        <dt>Revisiones</dt>
+        <dd>{summary.reviews}</dd>
+      </div>
+      {showExportedAt && (
+        <div>
+          <dt>Exportada</dt>
+          <dd>{formatExportedAt(summary.exportedAt)}</dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
+const css = `
+.t-data { display: flex; flex-direction: column; gap: 22px; }
+.t-data__head { display: flex; flex-direction: column; gap: 8px; }
+.t-data__title { font-size: clamp(28px, 6vw, 36px); }
+.t-data__lead { color: var(--fg-2); font-size: 14px; line-height: 1.55; }
+.t-data__origin { font-size: 12px; color: var(--fg-1); word-break: break-all; }
+
+.t-data__panel {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius-l);
+}
+.t-data__hint { color: var(--fg-2); font-size: 13px; line-height: 1.5; }
+.t-data__steps { margin: 0; padding-left: 20px; color: var(--fg-1); font-size: 14px; line-height: 1.6; }
+.t-data__time { display: flex; flex-direction: column; gap: 6px; }
+.t-field__label { font-size: 11px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--fg-2); }
+.t-data__time-input {
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; color: var(--fg-1); font-size: 16px; font-family: var(--font-body);
+  color-scheme: dark; min-height: 44px; width: 100%; max-width: 200px;
+}
+.t-data__time-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 4px var(--gold-dim); }
+
+.t-data__summary { display: grid; gap: 8px; margin: 0; }
+.t-data__summary > div { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: baseline; }
+.t-data__summary dt { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fg-2); }
+.t-data__summary dd { margin: 0; font-size: 14px; color: var(--fg-1); }
+.t-data__weeks { color: var(--fg-2); }
+
+.t-data__file { display: block; cursor: pointer; }
+.t-data__file:focus-within .t-btn { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.t-data__alert, .t-data__confirm {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 16px; border-radius: 14px; font-size: 14px; line-height: 1.5; color: var(--fg-1);
+}
+.t-data__alert { background: rgba(194,75,69,0.08); border: 1px solid rgba(194,75,69,0.4); }
+.t-data__confirm { background: var(--gold-dim); border: 1px solid var(--gold); }
+.t-data__alert-title { font-family: var(--font-display); font-size: 17px; }
+.t-data__alert code { font-size: 12px; word-break: break-all; }
+.t-data__warning { color: var(--fg-1); }
+.t-data__actions { display: flex; flex-direction: column; gap: 10px; }
+
+.t-data__notice { text-align: center; color: var(--gold); font-size: 14px; }
+.t-data__back { display: flex; justify-content: center; padding-top: 6px; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+`;
